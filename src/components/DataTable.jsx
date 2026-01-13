@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Eye, Search } from 'lucide-react';
 
 export function DataTable({ data }) {
     const [currentPage, setCurrentPage] = useState(1);
-    const rowsPerPage = 100;
+    const [rowsPerPage, setRowsPerPage] = useState(50);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Sorting state
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
     // Column Visibility state
-    // We initialize this when data loads. 
-    // Note: if columns change dynamically, this might need an effect, but for CSV it's usually static per file.
     const [visibleColumns, setVisibleColumns] = useState([]);
     const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
 
@@ -20,14 +19,10 @@ export function DataTable({ data }) {
     }, [data]);
 
     useEffect(() => {
-        // Reset visibility when dataset changes (columns might differ)
-        setVisibleColumns(prev => {
-            // If we already have visibility set and columns match, keep it. 
-            // Simplification: just reset to all visible on new file load
-            return allColumns;
-        });
+        setVisibleColumns(prev => allColumns);
         setCurrentPage(1);
         setSortConfig({ key: null, direction: 'asc' });
+        setSearchTerm('');
     }, [data, allColumns]);
 
     if (!data || data.length === 0) {
@@ -38,15 +33,25 @@ export function DataTable({ data }) {
         );
     }
 
-    // Handle Sorting
+    // 1. Search Filtering
+    const searchedData = useMemo(() => {
+        if (!searchTerm) return data;
+        const lowerTerm = searchTerm.toLowerCase();
+        return data.filter(row =>
+            Object.values(row).some(val =>
+                String(val).toLowerCase().includes(lowerTerm)
+            )
+        );
+    }, [data, searchTerm]);
+
+    // 2. Sorting
     const sortedData = useMemo(() => {
-        let sortableItems = [...data];
+        let sortableItems = [...searchedData];
         if (sortConfig.key !== null) {
             sortableItems.sort((a, b) => {
                 let aVal = a[sortConfig.key];
                 let bVal = b[sortConfig.key];
 
-                // Basic Type Inference for sorting
                 const aNum = Number(aVal);
                 const bNum = Number(bVal);
 
@@ -54,22 +59,17 @@ export function DataTable({ data }) {
                     aVal = aNum;
                     bVal = bNum;
                 } else {
-                    // String comparison
                     aVal = String(aVal).toLowerCase();
                     bVal = String(bVal).toLowerCase();
                 }
 
-                if (aVal < bVal) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (aVal > bVal) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
+                if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
                 return 0;
             });
         }
         return sortableItems;
-    }, [data, sortConfig]);
+    }, [searchedData, sortConfig]);
 
     // Request Sort Function
     const requestSort = (key) => {
@@ -80,7 +80,7 @@ export function DataTable({ data }) {
         setSortConfig({ key, direction });
     };
 
-    // Pagination Logic
+    // 3. Pagination
     const totalPages = Math.ceil(sortedData.length / rowsPerPage);
     const startIndex = (currentPage - 1) * rowsPerPage;
     const currentData = sortedData.slice(startIndex, startIndex + rowsPerPage);
@@ -95,44 +95,82 @@ export function DataTable({ data }) {
     };
 
     return (
-        <div className="flex flex-col gap-4">
-            {/* Table Actions / Toolbar */}
-            <div className="flex justify-end relative">
-                <button
-                    onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
-                    className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
-                >
-                    <Eye size={16} />
-                    Columns
-                </button>
+        <div className="flex flex-col gap-4 animate-in fade-in duration-300">
+            {/* Table Toolbar */}
+            <div className="flex flex-col sm:flex-row justify-between gap-4">
 
-                {/* Dropdown Panel */}
-                {isColumnDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 p-2 max-h-60 overflow-y-auto">
-                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 px-2">Toggle Visibility</div>
-                        {allColumns.map(col => (
-                            <label key={col} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={visibleColumns.includes(col)}
-                                    onChange={() => toggleColumn(col)}
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span className="text-sm text-gray-700 dark:text-gray-200 truncate">{col}</span>
-                            </label>
-                        ))}
-                    </div>
-                )}
+                {/* Search Input */}
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input
+                        type="text"
+                        placeholder="Quick search..."
+                        value={searchTerm}
+                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                        className="pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-64 transition-all"
+                    />
+                </div>
+
+                <div className="flex items-center gap-3 relative">
+                    {/* Rows Per Page */}
+                    <select
+                        value={rowsPerPage}
+                        onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                        className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-200 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={10}>10 rows</option>
+                        <option value={20}>20 rows</option>
+                        <option value={50}>50 rows</option>
+                        <option value={100}>100 rows</option>
+                        <option value={500}>500 rows</option>
+                    </select>
+
+                    {/* Columns Toggle */}
+                    <button
+                        onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
+                        className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+                    >
+                        <Eye size={16} />
+                        Columns
+                    </button>
+
+                    {/* Columns Dropdown */}
+                    {isColumnDropdownOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-30 p-2 max-h-60 overflow-y-auto ring-1 ring-black/5">
+                            <div className="flex justify-between items-center px-2 mb-2">
+                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Toggle Visibility</span>
+                                <button
+                                    onClick={() => setVisibleColumns(allColumns)}
+                                    className="text-[10px] text-blue-600 hover:underline"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+                            {allColumns.map(col => (
+                                <label key={col} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer group">
+                                    <input
+                                        type="checkbox"
+                                        checked={visibleColumns.includes(col)}
+                                        onChange={() => toggleColumn(col)}
+                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-gray-700 dark:text-gray-200 truncate group-hover:text-gray-900 dark:group-hover:text-white">{col}</span>
+                                </label>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-800">
-                <table className="w-full text-sm text-left text-gray-600 dark:text-gray-300">
-                    <thead className="text-xs text-gray-700 dark:text-gray-200 uppercase bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+            {/* Table Container - Fixed Height for Sticky Header */}
+            <div className="relative rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-800 max-h-[70vh] overflow-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                <table className="w-full text-sm text-left text-gray-600 dark:text-gray-300 relative">
+                    <thead className="text-xs text-gray-700 dark:text-gray-200 uppercase bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 shadow-sm">
                         <tr>
                             {allColumns.filter(col => visibleColumns.includes(col)).map(col => (
                                 <th
                                     key={col}
-                                    className="px-6 py-3 font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group select-none"
+                                    className="px-6 py-3 font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group select-none bg-gray-50 dark:bg-gray-900"
                                     onClick={() => requestSort(col)}
                                 >
                                     <div className="flex items-center gap-2">
@@ -149,49 +187,56 @@ export function DataTable({ data }) {
                             ))}
                         </tr>
                     </thead>
-                    <tbody>
-                        {currentData.map((row, i) => (
-                            <tr key={i} className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 last:border-b-0 transition-colors">
-                                {allColumns.filter(col => visibleColumns.includes(col)).map(col => (
-                                    <td key={`${i}-${col}`} className="px-6 py-4 whitespace-nowrap">
-                                        {row[col] && typeof row[col] === 'string' && row[col].length > 50
-                                            ? row[col].substring(0, 50) + '...'
-                                            : row[col]}
-                                    </td>
-                                ))}
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {currentData.length > 0 ? (
+                            currentData.map((row, i) => (
+                                <tr key={i} className="bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                                    {allColumns.filter(col => visibleColumns.includes(col)).map(col => (
+                                        <td key={`${i}-${col}`} className="px-6 py-3 whitespace-nowrap">
+                                            {row[col] && typeof row[col] === 'string' && row[col].length > 50
+                                                ? <span title={row[col]}>{row[col].substring(0, 50)}...</span>
+                                                : row[col]}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={visibleColumns.length} className="px-6 py-10 text-center text-gray-500">
+                                    No matches found for "{searchTerm}"
+                                </td>
                             </tr>
-                        ))}
+                        )}
                     </tbody>
                 </table>
             </div>
 
             {/* Pagination Controls */}
-            {totalPages > 1 && (
-                <div className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                        Showing <span className="font-semibold">{startIndex + 1}</span> to <span className="font-semibold">{Math.min(startIndex + rowsPerPage, sortedData.length)}</span> of <span className="font-semibold">{sortedData.length}</span> results
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="p-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
-                        >
-                            <ChevronLeft size={18} />
-                        </button>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Page {currentPage} of {totalPages}
-                        </span>
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="p-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
-                        >
-                            <ChevronRight size={18} />
-                        </button>
-                    </div>
+            <div className="flex flex-col sm:flex-row items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm gap-4">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Showing <span className="font-semibold text-gray-900 dark:text-gray-100">{startIndex + 1}</span> to <span className="font-semibold text-gray-900 dark:text-gray-100">{Math.min(startIndex + rowsPerPage, sortedData.length)}</span> of <span className="font-semibold text-gray-900 dark:text-gray-100">{sortedData.length}</span> results
                 </div>
-            )}
+
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="p-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                    >
+                        <ChevronLeft size={18} />
+                    </button>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-[80px] text-center">
+                        Page {currentPage} / {totalPages || 1}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages || totalPages === 0}
+                        className="p-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
+                    >
+                        <ChevronRight size={18} />
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
