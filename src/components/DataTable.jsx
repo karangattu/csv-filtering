@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Eye, Search } from 'lucide-react';
+import { SmartColumnBadge, TypeBadge } from './SmartColumnBadge';
 
-export function DataTable({ data, types }) {
+export function DataTable({ data, types, smartTypes = {} }) {
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(50);
     const [searchTerm, setSearchTerm] = useState('');
@@ -140,8 +141,8 @@ export function DataTable({ data, types }) {
                     <button
                         onClick={() => { setIsCaseSensitiveSearch(!isCaseSensitiveSearch); setCurrentPage(1); }}
                         className={`text-[10px] px-2 py-1.5 rounded border transition-colors font-medium flex items-center gap-1.5 whitespace-nowrap ${isCaseSensitiveSearch
-                                ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800 dark:text-blue-300"
-                                : "bg-white border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800 dark:text-blue-300"
+                            : "bg-white border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
                             }`}
                         title="Match Case Sensitivity for Quick Search"
                     >
@@ -212,7 +213,16 @@ export function DataTable({ data, types }) {
                                     onClick={() => requestSort(col)}
                                 >
                                     <div className="flex items-center gap-2">
-                                        {col}
+                                        <span className="truncate max-w-[150px]" title={col}>{col}</span>
+                                        {smartTypes[col]?.smartType ? (
+                                            <SmartColumnBadge
+                                                smartType={smartTypes[col].smartType}
+                                                validPercent={smartTypes[col].validPercent}
+                                                showValidation={true}
+                                            />
+                                        ) : types[col] ? (
+                                            <TypeBadge type={types[col]} />
+                                        ) : null}
                                         <span className="text-gray-400">
                                             {sortConfig.key === col ? (
                                                 sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-blue-600" /> : <ArrowDown size={14} className="text-blue-600" />

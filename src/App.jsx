@@ -6,23 +6,32 @@ import { ChartsView } from './components/ChartsView';
 import { ThemeToggle } from './components/ThemeToggle';
 import { TableManager } from './components/TableManager';
 import { JoinConfig } from './components/JoinConfig';
+import { ColumnStatistics } from './components/ColumnStatistics';
+import { DataQualityPanel } from './components/DataQualityPanel';
+import { DataCleaningPanel } from './components/DataCleaningPanel';
+import { PivotTable } from './components/PivotTable';
 import { useFilter } from './hooks/useFilter';
 import { useDarkMode } from './hooks/useDarkMode';
-import { detectColumnTypes, applyFilter, performJoin, cn } from './lib/utils';
-import { Filter, Download, LayoutGrid, Table as TableIcon } from 'lucide-react';
+import { detectColumnTypes, applyFilter, performJoin, detectSmartColumnTypes, cn } from './lib/utils';
+import { Filter, Download, LayoutGrid, Table as TableIcon, Grid3X3, Shield, Sparkles, BarChart3 } from 'lucide-react';
 import Papa from 'papaparse';
 
 function App() {
-    // Multi-table state: { tableName: { data: [], types: {} } }
+    // Multi-table state: { tableName: { data: [], types: {}, smartTypes: {} } }
     const [tables, setTables] = useState({});
     const [activeTable, setActiveTable] = useState(null);
-    const [activeTab, setActiveTab] = useState('table'); // 'table' | 'charts'
+    const [activeTab, setActiveTab] = useState('table'); // 'table' | 'charts' | 'pivot'
 
     // Join configuration state
     const [joins, setJoins] = useState([]); // [{ leftTable, leftColumn, rightTable, rightColumn }]
     const [isJoinConfigOpen, setIsJoinConfigOpen] = useState(false);
     const [isAddingTable, setIsAddingTable] = useState(false);
     const [isCaseSensitive, setIsCaseSensitive] = useState(false);
+
+    // Premium features state
+    const [isStatsOpen, setIsStatsOpen] = useState(false);
+    const [isQualityPanelOpen, setIsQualityPanelOpen] = useState(false);
+    const [isCleaningPanelOpen, setIsCleaningPanelOpen] = useState(false);
 
     const { filterTree, addCondition, addGroup, removeNode, updateNode, setFilterTree } = useFilter();
     const { theme, toggleTheme } = useDarkMode();
@@ -32,10 +41,11 @@ function App() {
 
     // Compute joined data when joins are configured
     const joinedData = useMemo(() => {
-        if (tableNames.length === 0) return { data: [], types: {}, columns: [] };
+        if (tableNames.length === 0) return { data: [], types: {}, columns: [], smartTypes: {} };
 
         if (joins.length > 0 && tableNames.length >= 2) {
-            return performJoin(tables, joins);
+            const result = performJoin(tables, joins);
+            return { ...result, smartTypes: detectSmartColumnTypes(result.data) };
         }
 
         // No joins configured - use active table data
@@ -44,11 +54,12 @@ function App() {
             return {
                 data: table.data,
                 types: table.types,
-                columns: table.data.length > 0 ? Object.keys(table.data[0]) : []
+                columns: table.data.length > 0 ? Object.keys(table.data[0]) : [],
+                smartTypes: table.smartTypes || {}
             };
         }
 
-        return { data: [], types: {}, columns: [] };
+        return { data: [], types: {}, columns: [], smartTypes: {} };
     }, [tables, joins, activeTable, tableNames]);
 
     // Combined columns from all tables for filtering (prefixed with table name)
@@ -79,9 +90,10 @@ function App() {
 
     const handleDataLoaded = useCallback((newData, tableName) => {
         const types = detectColumnTypes(newData);
+        const smartTypes = detectSmartColumnTypes(newData);
         setTables(prev => ({
             ...prev,
-            [tableName]: { data: newData, types }
+            [tableName]: { data: newData, types, smartTypes }
         }));
         // Set as active table if it's the first one
         setActiveTable(prev => prev || tableName);
@@ -118,6 +130,19 @@ function App() {
         if (joinedData.data.length === 0) return [];
         return joinedData.data.filter(row => applyFilter(row, filterTree, isCaseSensitive));
     }, [joinedData.data, filterTree, isCaseSensitive]);
+
+    // Handle data cleaning updates
+    const handleCleaningApply = useCallback((cleanedData) => {
+        if (!activeTable || !tables[activeTable]) return;
+
+        const types = detectColumnTypes(cleanedData);
+        const smartTypes = detectSmartColumnTypes(cleanedData);
+        setTables(prev => ({
+            ...prev,
+            [activeTable]: { data: cleanedData, types, smartTypes }
+        }));
+        setIsCleaningPanelOpen(false);
+    }, [activeTable, tables]);
 
     const handleDownload = () => {
         const csv = Papa.unparse(filteredData);
@@ -191,6 +216,22 @@ function App() {
                             />
                         )}
 
+                        {/* Premium Feature Modals */}
+                        <DataQualityPanel
+                            data={filteredData}
+                            types={joins.length > 0 ? allTypesWithTables : joinedData.types}
+                            isOpen={isQualityPanelOpen}
+                            onClose={() => setIsQualityPanelOpen(false)}
+                        />
+
+                        <DataCleaningPanel
+                            data={joinedData.data}
+                            columns={joinedData.columns}
+                            isOpen={isCleaningPanelOpen}
+                            onClose={() => setIsCleaningPanelOpen(false)}
+                            onApply={handleCleaningApply}
+                        />
+
                         {/* Action Bar */}
                         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <button
@@ -200,13 +241,30 @@ function App() {
                                 ← Clear all tables
                             </button>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap justify-center">
                                 {/* Join Status */}
                                 {joins.length > 0 && (
                                     <div className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full font-medium">
                                         {joins.length} join{joins.length > 1 ? 's' : ''} active
                                     </div>
                                 )}
+
+                                {/* Premium Feature Buttons */}
+                                <button
+                                    onClick={() => setIsQualityPanelOpen(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-medium hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
+                                >
+                                    <Shield size={14} />
+                                    Data Quality
+                                </button>
+
+                                <button
+                                    onClick={() => setIsCleaningPanelOpen(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-lg text-xs font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
+                                >
+                                    <Sparkles size={14} />
+                                    Clean Data
+                                </button>
 
                                 {/* View Toggles */}
                                 <div className="bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center">
@@ -222,6 +280,12 @@ function App() {
                                     >
                                         <LayoutGrid size={16} /> Charts
                                     </button>
+                                    <button
+                                        onClick={() => setActiveTab('pivot')}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'pivot' ? 'bg-gray-100 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                    >
+                                        <Grid3X3 size={16} /> Pivot
+                                    </button>
                                 </div>
 
                                 <button
@@ -234,6 +298,16 @@ function App() {
                                 </button>
                             </div>
                         </div>
+
+                        {/* Column Statistics Panel */}
+                        {activeTab === 'table' && (
+                            <ColumnStatistics
+                                data={filteredData}
+                                types={joins.length > 0 ? allTypesWithTables : joinedData.types}
+                                isOpen={isStatsOpen}
+                                onToggle={() => setIsStatsOpen(!isStatsOpen)}
+                            />
+                        )}
 
                         {/* Filter Builder */}
                         <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors">
@@ -278,9 +352,23 @@ function App() {
                         {/* Content Area */}
                         <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                             {activeTab === 'table' ? (
-                                <DataTable data={filteredData} types={joins.length > 0 ? allTypesWithTables : joinedData.types} />
+                                <DataTable
+                                    data={filteredData}
+                                    types={joins.length > 0 ? allTypesWithTables : joinedData.types}
+                                    smartTypes={joinedData.smartTypes}
+                                />
+                            ) : activeTab === 'charts' ? (
+                                <ChartsView
+                                    data={filteredData}
+                                    columns={joinedData.columns}
+                                    types={joins.length > 0 ? allTypesWithTables : joinedData.types}
+                                />
                             ) : (
-                                <ChartsView data={filteredData} columns={joinedData.columns} types={joins.length > 0 ? allTypesWithTables : joinedData.types} />
+                                <PivotTable
+                                    data={filteredData}
+                                    columns={joinedData.columns}
+                                    types={joins.length > 0 ? allTypesWithTables : joinedData.types}
+                                />
                             )}
                         </section>
                     </div>
