@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Grid3X3, Download, GripVertical, X, ChevronDown } from 'lucide-react';
+import { Grid3X3, Download, GripVertical, X, ChevronDown, HelpCircle } from 'lucide-react';
 import { createPivotData } from '../lib/utils';
 import Papa from 'papaparse';
 
@@ -13,9 +13,76 @@ const AGGREGATION_OPTIONS = [
 ];
 
 /**
+ * Help popover component for pivot table tutorial
+ */
+function PivotHelpPopover({ isOpen, onClose }) {
+    if (!isOpen) return null;
+
+    return (
+        <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30 rounded-t-xl">
+                <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                        <HelpCircle size={16} className="text-indigo-500" />
+                        How to Use Pivot Tables
+                    </h4>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <X size={16} />
+                    </button>
+                </div>
+            </div>
+            <div className="p-4 space-y-4 text-sm max-h-80 overflow-y-auto">
+                <div>
+                    <h5 className="font-medium text-gray-700 dark:text-gray-200 mb-1">📊 What is a Pivot Table?</h5>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs">
+                        A pivot table summarizes your data by grouping and calculating totals. Great for answering questions like "How many orders per city?" or "Total sales by category?"
+                    </p>
+                </div>
+
+                <div className="space-y-2">
+                    <h5 className="font-medium text-gray-700 dark:text-gray-200">⚙️ Configuration Fields</h5>
+                    <div className="space-y-1.5 text-xs">
+                        <div className="flex gap-2">
+                            <span className="font-semibold text-indigo-600 dark:text-indigo-400 w-20">Row Field</span>
+                            <span className="text-gray-500 dark:text-gray-400">Groups data into rows (e.g., City, Category)</span>
+                        </div>
+                        <div className="flex gap-2">
+                            <span className="font-semibold text-indigo-600 dark:text-indigo-400 w-20">Column Field</span>
+                            <span className="text-gray-500 dark:text-gray-400">Creates columns (optional, for cross-tabs)</span>
+                        </div>
+                        <div className="flex gap-2">
+                            <span className="font-semibold text-indigo-600 dark:text-indigo-400 w-20">Value Field</span>
+                            <span className="text-gray-500 dark:text-gray-400">The numbers to calculate (leave empty to count)</span>
+                        </div>
+                        <div className="flex gap-2">
+                            <span className="font-semibold text-indigo-600 dark:text-indigo-400 w-20">Aggregation</span>
+                            <span className="text-gray-500 dark:text-gray-400">How to combine: Sum, Average, Count, etc.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-3">
+                    <h5 className="font-medium text-indigo-700 dark:text-indigo-300 mb-1 text-xs">💡 Quick Start</h5>
+                    <ol className="text-xs text-indigo-600 dark:text-indigo-400 space-y-1 list-decimal list-inside">
+                        <li>Pick a <strong>Row Field</strong> (e.g., City)</li>
+                        <li>Leave Column Field as "(None)" for simple summary</li>
+                        <li>Select a <strong>Value Field</strong> for numbers, or use Count</li>
+                        <li>Choose how to aggregate (Sum, Average, etc.)</li>
+                    </ol>
+                </div>
+
+                <div className="text-xs text-gray-400 dark:text-gray-500 italic">
+                    Tip: Click "Export Pivot" to download your results as CSV!
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/**
  * Field selector dropdown
  */
-function FieldSelector({ label, value, options, onChange, placeholder, allowEmpty = false }) {
+function FieldSelector({ label, value, options, onChange, placeholder, allowEmpty = false, tooltip }) {
     return (
         <div className="flex-1">
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
@@ -46,6 +113,7 @@ export function PivotTable({ data, columns, types }) {
     const [columnField, setColumnField] = useState('');
     const [valueField, setValueField] = useState('');
     const [aggFunc, setAggFunc] = useState('sum');
+    const [isHelpOpen, setIsHelpOpen] = useState(false);
 
     // Set defaults when columns change
     React.useEffect(() => {
@@ -120,13 +188,26 @@ export function PivotTable({ data, columns, types }) {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             {/* Configuration Panel */}
             <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border-b border-gray-200 dark:border-gray-700 p-5">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-indigo-600 p-2 rounded-lg shadow-md">
-                        <Grid3X3 className="text-white" size={18} />
+                <div className="flex items-center justify-between mb-4 relative">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-indigo-600 p-2 rounded-lg shadow-md">
+                            <Grid3X3 className="text-white" size={18} />
+                        </div>
+                        <h3 className="font-semibold text-gray-800 dark:text-gray-100">
+                            Pivot Table Configuration
+                        </h3>
                     </div>
-                    <h3 className="font-semibold text-gray-800 dark:text-gray-100">
-                        Pivot Table Configuration
-                    </h3>
+                    <button
+                        onClick={() => setIsHelpOpen(!isHelpOpen)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isHelpOpen
+                                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
+                                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
+                            }`}
+                    >
+                        <HelpCircle size={14} />
+                        Help
+                    </button>
+                    <PivotHelpPopover isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
