@@ -1,0 +1,11 @@
+id,guest_id,program,date,status
+101,1,Meal,2026-01-10,Attended
+102,1,Workshop,2026-01-11,Attended
+103,2,Meal,2026-01-10,Attended
+104,3,Meal,2026-01-10,Cancelled
+105,4,Workshop,2026-01-11,Attended
+106,1,Event,2026-01-12,Attended
+107,2,Event,2026-01-12,No Show
+108,5,Meal,2026-01-10,Attended
+109,6,Workshop,2026-01-11,Attended
+110,7,Meal,2026-01-10,Attended

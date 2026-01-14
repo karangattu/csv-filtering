@@ -142,6 +142,7 @@ export function JoinConfig({ tables, joins, onUpdateJoins, onClose }) {
                         </div>
 
                         <button
+                            type="button"
                             onClick={handleAddJoin}
                             disabled={!newJoin.leftColumn || !newJoin.rightColumn}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -161,6 +162,7 @@ export function JoinConfig({ tables, joins, onUpdateJoins, onClose }) {
                 {/* Footer */}
                 <div className="bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end">
                     <button
+                        type="button"
                         onClick={onClose}
                         className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg font-medium transition-colors"
                     >

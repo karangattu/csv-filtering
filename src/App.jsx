@@ -244,6 +244,7 @@ function App() {
                                 </h2>
                                 <div className="flex items-center gap-4">
                                     <button
+                                        type="button"
                                         onClick={() => setIsCaseSensitive(!isCaseSensitive)}
                                         className={cn(
                                             "text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1.5 font-medium",
