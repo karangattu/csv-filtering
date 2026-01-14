@@ -25,16 +25,9 @@ export function DataTable({ data, types }) {
         setSearchTerm('');
     }, [data, allColumns]);
 
-    if (!data || data.length === 0) {
-        return (
-            <div className="text-center py-10 text-gray-500 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                No results found.
-            </div>
-        );
-    }
-
     // 1. Search Filtering
     const searchedData = useMemo(() => {
+        if (!data || data.length === 0) return [];
         if (!searchTerm) return data;
         const lowerTerm = searchTerm.toLowerCase();
         return data.filter(row =>
@@ -46,6 +39,7 @@ export function DataTable({ data, types }) {
 
     // 2. Sorting
     const sortedData = useMemo(() => {
+        if (searchedData.length === 0) return [];
         let sortableItems = [...searchedData];
         if (sortConfig.key !== null) {
             sortableItems.sort((a, b) => {
@@ -89,6 +83,14 @@ export function DataTable({ data, types }) {
         });
         return sums;
     }, [sortedData, allColumns, types]);
+
+    if (!data || data.length === 0) {
+        return (
+            <div className="text-center py-10 text-gray-500 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                No results found.
+            </div>
+        );
+    }
 
     // Request Sort Function
     const requestSort = (key) => {
