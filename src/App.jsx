@@ -8,7 +8,7 @@ import { TableManager } from './components/TableManager';
 import { JoinConfig } from './components/JoinConfig';
 import { useFilter } from './hooks/useFilter';
 import { useDarkMode } from './hooks/useDarkMode';
-import { detectColumnTypes, applyFilter, performJoin } from './lib/utils';
+import { detectColumnTypes, applyFilter, performJoin, cn } from './lib/utils';
 import { Filter, Download, LayoutGrid, Table as TableIcon } from 'lucide-react';
 import Papa from 'papaparse';
 
