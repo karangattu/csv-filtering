@@ -3,7 +3,7 @@ import { FilterCondition } from './FilterCondition';
 import { Plus, Trash2, Copy } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-export function FilterGroup({ node, columns, types, addCondition, addGroup, removeNode, updateNode, depth = 0 }) {
+export function FilterGroup({ node, columns, types, addCondition, addGroup, removeNode, updateNode, columnUniqueValues = {}, depth = 0 }) {
     const isRoot = depth === 0;
 
     return (
@@ -72,6 +72,7 @@ export function FilterGroup({ node, columns, types, addCondition, addGroup, remo
                                 addGroup={addGroup}
                                 removeNode={removeNode}
                                 updateNode={updateNode}
+                                columnUniqueValues={columnUniqueValues}
                                 depth={depth + 1}
                             />
                         ) : (
@@ -81,6 +82,7 @@ export function FilterGroup({ node, columns, types, addCondition, addGroup, remo
                                 types={types}
                                 updateNode={updateNode}
                                 removeNode={removeNode}
+                                columnUniqueValues={columnUniqueValues}
                             />
                         )}
                         {/* Logic Label between items */}

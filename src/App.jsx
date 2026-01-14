@@ -88,6 +88,29 @@ function App() {
         return types;
     }, [tables, tableNames]);
 
+    // Compute unique values per column for filter dropdowns
+    const columnUniqueValues = useMemo(() => {
+        const data = joinedData.data;
+        if (!data || data.length === 0) return {};
+
+        const uniqueVals = {};
+        const columns = joinedData.columns;
+
+        columns.forEach(col => {
+            const valuesSet = new Set();
+            data.forEach(row => {
+                const val = row[col];
+                if (val !== null && val !== undefined) {
+                    valuesSet.add(String(val));
+                }
+            });
+            // Sort values alphabetically
+            uniqueVals[col] = Array.from(valuesSet).sort((a, b) => a.localeCompare(b));
+        });
+
+        return uniqueVals;
+    }, [joinedData.data, joinedData.columns]);
+
     const handleDataLoaded = useCallback((newData, tableName) => {
         const types = detectColumnTypes(newData);
         const smartTypes = detectSmartColumnTypes(newData);
@@ -345,6 +368,7 @@ function App() {
                                     addGroup={addGroup}
                                     removeNode={removeNode}
                                     updateNode={updateNode}
+                                    columnUniqueValues={columnUniqueValues}
                                 />
                             </div>
                         </section>
