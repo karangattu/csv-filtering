@@ -20,7 +20,18 @@ export function ChartsView({ data, columns, types }) {
         });
     }, [data, columns, types]);
 
-    const [selectedColumn, setSelectedColumn] = useState(categoricalColumns[0] || '');
+    const [selectedColumn, setSelectedColumn] = useState('');
+
+    // Set default column when categoricalColumns changes or if selectedColumn is no longer valid
+    React.useEffect(() => {
+        if (categoricalColumns.length > 0) {
+            if (!selectedColumn || !categoricalColumns.includes(selectedColumn)) {
+                setSelectedColumn(categoricalColumns[0]);
+            }
+        } else {
+            setSelectedColumn('');
+        }
+    }, [categoricalColumns, selectedColumn]);
 
     const chartData = useMemo(() => {
         if (!selectedColumn) return [];
@@ -42,12 +53,7 @@ export function ChartsView({ data, columns, types }) {
             <div className="p-10 text-center text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
                 No suitable categorical columns found to chart (need columns with &lt; 20 unique values).
             </div>
-        )
-    }
-
-    if (!selectedColumn) {
-        // If we have columns but state wasn't set yet
-        if (categoricalColumns.length > 0) setSelectedColumn(categoricalColumns[0]);
+        );
     }
 
     return (

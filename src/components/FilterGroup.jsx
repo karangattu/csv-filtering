@@ -13,15 +13,15 @@ export function FilterGroup({ node, columns, types, addCondition, addGroup, remo
         )}>
             <div className="flex items-center gap-4 mb-2">
                 {/* Logic Toggle */}
-                <div className="flex items-center bg-gray-200 rounded p-1 text-xs font-semibold">
+                <div className="flex items-center bg-gray-200 dark:bg-gray-700 rounded p-1 text-xs font-semibold">
                     <button
-                        className={cn("px-3 py-1 rounded transition-all", node.logic === 'AND' ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:text-blue-600")}
+                        className={cn("px-3 py-1 rounded transition-all", node.logic === 'AND' ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400")}
                         onClick={() => updateNode(node.id, { logic: 'AND' })}
                     >
                         AND
                     </button>
                     <button
-                        className={cn("px-3 py-1 rounded transition-all", node.logic === 'OR' ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:text-blue-600")}
+                        className={cn("px-3 py-1 rounded transition-all", node.logic === 'OR' ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400")}
                         onClick={() => updateNode(node.id, { logic: 'OR' })}
                     >
                         OR
@@ -32,13 +32,13 @@ export function FilterGroup({ node, columns, types, addCondition, addGroup, remo
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => addCondition(node.id)}
-                        className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 px-2 py-1 rounded hover:bg-gray-50 hover:text-blue-600 transition-colors shadow-sm"
+                        className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shadow-sm"
                     >
                         <Plus size={14} /> Condition
                     </button>
                     <button
                         onClick={() => addGroup(node.id)}
-                        className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 px-2 py-1 rounded hover:bg-gray-50 hover:text-blue-600 transition-colors shadow-sm"
+                        className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shadow-sm"
                     >
                         <Plus size={14} /> Group
                     </button>
@@ -47,7 +47,7 @@ export function FilterGroup({ node, columns, types, addCondition, addGroup, remo
                 {!isRoot && (
                     <button
                         onClick={() => removeNode(node.id)}
-                        className="ml-auto p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                        className="ml-auto p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                         title="Remove group"
                     >
                         <Trash2 size={16} />
