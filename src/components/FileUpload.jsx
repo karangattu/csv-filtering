@@ -4,7 +4,7 @@ import { Upload, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { cn } from '../lib/utils';
 
-export function FileUpload({ onDataLoaded }) {
+export function FileUpload({ onDataLoaded, compact = false }) {
     const [isDragOver, setIsDragOver] = useState(false);
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +56,9 @@ export function FileUpload({ onDataLoaded }) {
                         console.error("Parse errors:", results.errors);
                     }
                     if (results.data && results.data.length > 0) {
-                        onDataLoaded(results.data);
+                        // Extract table name from filename (without extension)
+                        const tableName = file.name.replace(/\.csv$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
+                        onDataLoaded(results.data, tableName);
                     } else {
                         setError("The CSV file appears to be empty.");
                     }

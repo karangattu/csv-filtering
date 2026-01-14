@@ -131,3 +131,118 @@ export function applyFilter(row, filterNode) {
     }
     return true;
 }
+
+/**
+ * Perform INNER JOIN across multiple tables based on join definitions.
+ * @param {Object} tables - { tableName: { data: [], types: {} } }
+ * @param {Array} joins - [{ leftTable, leftColumn, rightTable, rightColumn }]
+ * @returns {{ data: Array, types: Object, columns: Array }}
+ */
+export function performJoin(tables, joins) {
+    if (!joins || joins.length === 0 || Object.keys(tables).length < 2) {
+        return { data: [], types: {}, columns: [] };
+    }
+
+    // Start with the first join
+    const firstJoin = joins[0];
+    const leftTable = tables[firstJoin.leftTable];
+    const rightTable = tables[firstJoin.rightTable];
+
+    if (!leftTable || !rightTable) {
+        return { data: [], types: {}, columns: [] };
+    }
+
+    // Perform INNER JOIN
+    let result = [];
+    const leftData = leftTable.data;
+    const rightData = rightTable.data;
+
+    // Create index on right table for faster lookup
+    const rightIndex = {};
+    rightData.forEach(row => {
+        const key = String(row[firstJoin.rightColumn] ?? '').toLowerCase();
+        if (!rightIndex[key]) {
+            rightIndex[key] = [];
+        }
+        rightIndex[key].push(row);
+    });
+
+    // Join
+    leftData.forEach(leftRow => {
+        const key = String(leftRow[firstJoin.leftColumn] ?? '').toLowerCase();
+        const matchingRightRows = rightIndex[key] || [];
+        
+        matchingRightRows.forEach(rightRow => {
+            // Combine rows with prefixed column names
+            const combinedRow = {};
+            
+            // Add left table columns
+            Object.entries(leftRow).forEach(([col, val]) => {
+                combinedRow[`${firstJoin.leftTable}.${col}`] = val;
+            });
+            
+            // Add right table columns
+            Object.entries(rightRow).forEach(([col, val]) => {
+                combinedRow[`${firstJoin.rightTable}.${col}`] = val;
+            });
+            
+            result.push(combinedRow);
+        });
+    });
+
+    // Apply subsequent joins if any
+    for (let i = 1; i < joins.length; i++) {
+        const join = joins[i];
+        const nextTable = tables[join.rightTable];
+        
+        if (!nextTable) continue;
+
+        // Create index for next table
+        const nextIndex = {};
+        nextTable.data.forEach(row => {
+            const key = String(row[join.rightColumn] ?? '').toLowerCase();
+            if (!nextIndex[key]) {
+                nextIndex[key] = [];
+            }
+            nextIndex[key].push(row);
+        });
+
+        // Join result with next table
+        const newResult = [];
+        result.forEach(resultRow => {
+            // The left column is already prefixed
+            const leftColName = join.leftColumn.includes('.') ? join.leftColumn : `${join.leftTable}.${join.leftColumn}`;
+            const key = String(resultRow[leftColName] ?? '').toLowerCase();
+            const matchingRows = nextIndex[key] || [];
+
+            matchingRows.forEach(nextRow => {
+                const combinedRow = { ...resultRow };
+                Object.entries(nextRow).forEach(([col, val]) => {
+                    combinedRow[`${join.rightTable}.${col}`] = val;
+                });
+                newResult.push(combinedRow);
+            });
+        });
+
+        result = newResult;
+    }
+
+    // Build types for joined columns
+    const types = {};
+    joins.forEach(join => {
+        const leftTypes = tables[join.leftTable]?.types || {};
+        const rightTypes = tables[join.rightTable]?.types || {};
+        
+        Object.entries(leftTypes).forEach(([col, type]) => {
+            types[`${join.leftTable}.${col}`] = type;
+        });
+        Object.entries(rightTypes).forEach(([col, type]) => {
+            types[`${join.rightTable}.${col}`] = type;
+        });
+    });
+
+    // Get columns from result
+    const columns = result.length > 0 ? Object.keys(result[0]) : [];
+
+    return { data: result, types, columns };
+}

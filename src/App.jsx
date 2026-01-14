@@ -1,38 +1,122 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { FilterGroup } from './components/FilterGroup';
 import { ChartsView } from './components/ChartsView';
 import { ThemeToggle } from './components/ThemeToggle';
+import { TableManager } from './components/TableManager';
+import { JoinConfig } from './components/JoinConfig';
 import { useFilter } from './hooks/useFilter';
 import { useDarkMode } from './hooks/useDarkMode';
-import { detectColumnTypes, applyFilter } from './lib/utils';
+import { detectColumnTypes, applyFilter, performJoin } from './lib/utils';
 import { Filter, Download, LayoutGrid, Table as TableIcon } from 'lucide-react';
 import Papa from 'papaparse';
 
 function App() {
-    const [data, setData] = useState([]);
-    const [columnTypes, setColumnTypes] = useState({});
+    // Multi-table state: { tableName: { data: [], types: {} } }
+    const [tables, setTables] = useState({});
+    const [activeTable, setActiveTable] = useState(null);
     const [activeTab, setActiveTab] = useState('table'); // 'table' | 'charts'
+
+    // Join configuration state
+    const [joins, setJoins] = useState([]); // [{ leftTable, leftColumn, rightTable, rightColumn }]
+    const [isJoinConfigOpen, setIsJoinConfigOpen] = useState(false);
+    const [isAddingTable, setIsAddingTable] = useState(false);
 
     const { filterTree, addCondition, addGroup, removeNode, updateNode, setFilterTree } = useFilter();
     const { theme, toggleTheme } = useDarkMode();
 
-    const columns = useMemo(() => {
-        if (data.length === 0) return [];
-        return Object.keys(data[0]);
-    }, [data]);
+    const tableNames = useMemo(() => Object.keys(tables), [tables]);
+    const hasData = tableNames.length > 0;
 
-    const handleDataLoaded = (newData) => {
-        setData(newData);
+    // Compute joined data when joins are configured
+    const joinedData = useMemo(() => {
+        if (tableNames.length === 0) return { data: [], types: {}, columns: [] };
+
+        if (joins.length > 0 && tableNames.length >= 2) {
+            return performJoin(tables, joins);
+        }
+
+        // No joins configured - use active table data
+        if (activeTable && tables[activeTable]) {
+            const table = tables[activeTable];
+            return {
+                data: table.data,
+                types: table.types,
+                columns: table.data.length > 0 ? Object.keys(table.data[0]) : []
+            };
+        }
+
+        return { data: [], types: {}, columns: [] };
+    }, [tables, joins, activeTable, tableNames]);
+
+    // Combined columns from all tables for filtering (prefixed with table name)
+    const allColumnsWithTables = useMemo(() => {
+        const cols = [];
+        tableNames.forEach(tableName => {
+            const tableData = tables[tableName]?.data;
+            if (tableData && tableData.length > 0) {
+                Object.keys(tableData[0]).forEach(col => {
+                    cols.push({ table: tableName, column: col, fullName: `${tableName}.${col}` });
+                });
+            }
+        });
+        return cols;
+    }, [tables, tableNames]);
+
+    // Combined types for filtering
+    const allTypesWithTables = useMemo(() => {
+        const types = {};
+        tableNames.forEach(tableName => {
+            const tableTypes = tables[tableName]?.types || {};
+            Object.entries(tableTypes).forEach(([col, type]) => {
+                types[`${tableName}.${col}`] = type;
+            });
+        });
+        return types;
+    }, [tables, tableNames]);
+
+    const handleDataLoaded = useCallback((newData, tableName) => {
         const types = detectColumnTypes(newData);
-        setColumnTypes(types);
-    };
+        setTables(prev => ({
+            ...prev,
+            [tableName]: { data: newData, types }
+        }));
+        // Set as active table if it's the first one
+        setActiveTable(prev => prev || tableName);
+        setIsAddingTable(false);
+    }, []);
 
+    const handleRemoveTable = useCallback((tableName) => {
+        setTables(prev => {
+            const newTables = { ...prev };
+            delete newTables[tableName];
+            return newTables;
+        });
+        // Update active table if removed
+        setActiveTable(prev => {
+            if (prev === tableName) {
+                const remaining = Object.keys(tables).filter(t => t !== tableName);
+                return remaining[0] || null;
+            }
+            return prev;
+        });
+        // Remove joins referencing this table
+        setJoins(prev => prev.filter(j => j.leftTable !== tableName && j.rightTable !== tableName));
+    }, [tables]);
+
+    const handleClearAll = useCallback(() => {
+        setTables({});
+        setActiveTable(null);
+        setJoins([]);
+        setFilterTree({ id: 'root', type: 'group', logic: 'AND', children: [] });
+    }, [setFilterTree]);
+
+    // Apply filters to joined data
     const filteredData = useMemo(() => {
-        if (data.length === 0) return [];
-        return data.filter(row => applyFilter(row, filterTree));
-    }, [data, filterTree]);
+        if (joinedData.data.length === 0) return [];
+        return joinedData.data.filter(row => applyFilter(row, filterTree));
+    }, [joinedData.data, filterTree]);
 
     const handleDownload = () => {
         const csv = Papa.unparse(filteredData);
@@ -68,23 +152,61 @@ function App() {
 
             <main className="flex-1 max-w-7xl w-full mx-auto p-8 space-y-8">
 
-                {/* Upload Section */}
-                {data.length === 0 ? (
+                {/* Upload Section - Show when no tables or adding new */}
+                {(!hasData || isAddingTable) && (
                     <div className="max-w-2xl mx-auto mt-20 animate-in fade-in slide-in-from-bottom-5 duration-500">
+                        {isAddingTable && (
+                            <button
+                                onClick={() => setIsAddingTable(false)}
+                                className="mb-4 text-sm text-gray-500 hover:text-blue-600 underline"
+                            >
+                                ← Cancel
+                            </button>
+                        )}
                         <FileUpload onDataLoaded={handleDataLoaded} />
                     </div>
-                ) : (
+                )}
+
+                {hasData && !isAddingTable && (
                     <div className="space-y-6 animate-in fade-in duration-500">
+
+                        {/* Table Manager */}
+                        <TableManager
+                            tables={tables}
+                            activeTable={activeTable}
+                            onSelectTable={setActiveTable}
+                            onRemoveTable={handleRemoveTable}
+                            onAddTable={() => setIsAddingTable(true)}
+                            onOpenJoinConfig={() => setIsJoinConfigOpen(true)}
+                        />
+
+                        {/* Join Configuration Modal */}
+                        {isJoinConfigOpen && (
+                            <JoinConfig
+                                tables={tables}
+                                joins={joins}
+                                onUpdateJoins={setJoins}
+                                onClose={() => setIsJoinConfigOpen(false)}
+                            />
+                        )}
+
                         {/* Action Bar */}
                         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <button
-                                onClick={() => setData([])}
+                                onClick={handleClearAll}
                                 className="text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline transition-colors"
                             >
-                                ← Upload a different file
+                                ← Clear all tables
                             </button>
 
                             <div className="flex items-center gap-3">
+                                {/* Join Status */}
+                                {joins.length > 0 && (
+                                    <div className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full font-medium">
+                                        {joins.length} join{joins.length > 1 ? 's' : ''} active
+                                    </div>
+                                )}
+
                                 {/* View Toggles */}
                                 <div className="bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center">
                                     <button
@@ -126,8 +248,8 @@ function App() {
                             <div className="p-6">
                                 <FilterGroup
                                     node={filterTree}
-                                    columns={columns}
-                                    types={columnTypes}
+                                    columns={joins.length > 0 ? allColumnsWithTables.map(c => c.fullName) : joinedData.columns}
+                                    types={joins.length > 0 ? allTypesWithTables : joinedData.types}
                                     addCondition={addCondition}
                                     addGroup={addGroup}
                                     removeNode={removeNode}
@@ -139,9 +261,9 @@ function App() {
                         {/* Content Area */}
                         <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                             {activeTab === 'table' ? (
-                                <DataTable data={filteredData} types={columnTypes} />
+                                <DataTable data={filteredData} types={joins.length > 0 ? allTypesWithTables : joinedData.types} />
                             ) : (
-                                <ChartsView data={filteredData} columns={columns} types={columnTypes} />
+                                <ChartsView data={filteredData} columns={joinedData.columns} types={joins.length > 0 ? allTypesWithTables : joinedData.types} />
                             )}
                         </section>
                     </div>
