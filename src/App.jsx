@@ -22,6 +22,7 @@ function App() {
     const [joins, setJoins] = useState([]); // [{ leftTable, leftColumn, rightTable, rightColumn }]
     const [isJoinConfigOpen, setIsJoinConfigOpen] = useState(false);
     const [isAddingTable, setIsAddingTable] = useState(false);
+    const [isCaseSensitive, setIsCaseSensitive] = useState(false);
 
     const { filterTree, addCondition, addGroup, removeNode, updateNode, setFilterTree } = useFilter();
     const { theme, toggleTheme } = useDarkMode();
@@ -115,8 +116,8 @@ function App() {
     // Apply filters to joined data
     const filteredData = useMemo(() => {
         if (joinedData.data.length === 0) return [];
-        return joinedData.data.filter(row => applyFilter(row, filterTree));
-    }, [joinedData.data, filterTree]);
+        return joinedData.data.filter(row => applyFilter(row, filterTree, isCaseSensitive));
+    }, [joinedData.data, filterTree, isCaseSensitive]);
 
     const handleDownload = () => {
         const csv = Papa.unparse(filteredData);
@@ -241,8 +242,23 @@ function App() {
                                     <Filter size={18} />
                                     Filter Records
                                 </h2>
-                                <div className="text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded border border-gray-200 dark:border-gray-700">
-                                    <span className="font-semibold text-gray-800 dark:text-gray-100">{filteredData.length}</span> matches found
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={() => setIsCaseSensitive(!isCaseSensitive)}
+                                        className={cn(
+                                            "text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1.5 font-medium",
+                                            isCaseSensitive
+                                                ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800 dark:text-blue-300"
+                                                : "bg-white border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        )}
+                                        title="Match Case Sensitivity"
+                                    >
+                                        <div className={cn("w-2 h-2 rounded-full", isCaseSensitive ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600")} />
+                                        Match Case
+                                    </button>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded border border-gray-200 dark:border-gray-700">
+                                        <span className="font-semibold text-gray-800 dark:text-gray-100">{filteredData.length}</span> matches found
+                                    </div>
                                 </div>
                             </div>
                             <div className="p-6">

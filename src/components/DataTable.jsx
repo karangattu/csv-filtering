@@ -5,6 +5,7 @@ export function DataTable({ data, types }) {
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(50);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isCaseSensitiveSearch, setIsCaseSensitiveSearch] = useState(false);
 
     // Sorting state
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
@@ -29,13 +30,17 @@ export function DataTable({ data, types }) {
     const searchedData = useMemo(() => {
         if (!data || data.length === 0) return [];
         if (!searchTerm) return data;
-        const lowerTerm = searchTerm.toLowerCase();
+
+        const term = isCaseSensitiveSearch ? searchTerm : searchTerm.toLowerCase();
+
         return data.filter(row =>
-            Object.values(row).some(val =>
-                String(val).toLowerCase().includes(lowerTerm)
-            )
+            Object.values(row).some(val => {
+                const rowVal = String(val ?? '');
+                const finalRowVal = isCaseSensitiveSearch ? rowVal : rowVal.toLowerCase();
+                return finalRowVal.includes(term);
+            })
         );
-    }, [data, searchTerm]);
+    }, [data, searchTerm, isCaseSensitiveSearch]);
 
     // 2. Sorting
     const sortedData = useMemo(() => {
@@ -121,15 +126,27 @@ export function DataTable({ data, types }) {
             <div className="flex flex-col sm:flex-row justify-between gap-4">
 
                 {/* Search Input */}
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                    <input
-                        type="text"
-                        placeholder="Quick search..."
-                        value={searchTerm}
-                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                        className="pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-64 transition-all"
-                    />
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                    <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Quick search..."
+                            value={searchTerm}
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            className="pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none w-full transition-all"
+                        />
+                    </div>
+                    <button
+                        onClick={() => { setIsCaseSensitiveSearch(!isCaseSensitiveSearch); setCurrentPage(1); }}
+                        className={`text-[10px] px-2 py-1.5 rounded border transition-colors font-medium flex items-center gap-1.5 whitespace-nowrap ${isCaseSensitiveSearch
+                                ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800 dark:text-blue-300"
+                                : "bg-white border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            }`}
+                        title="Match Case Sensitivity for Quick Search"
+                    >
+                        Aa
+                    </button>
                 </div>
 
                 <div className="flex items-center gap-3 relative">

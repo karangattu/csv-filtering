@@ -37,13 +37,13 @@ export function detectColumnTypes(data) {
     return types;
 }
 
-export function applyFilter(row, filterNode) {
+export function applyFilter(row, filterNode, isCaseSensitive = false) {
     if (filterNode.type === 'group') {
         const { logic, children } = filterNode;
         if (children.length === 0) return true;
 
         // Evaluate all children
-        const results = children.map(child => applyFilter(row, child));
+        const results = children.map(child => applyFilter(row, child, isCaseSensitive));
 
         if (logic === 'AND') {
             return results.every(r => r);
@@ -70,33 +70,36 @@ export function applyFilter(row, filterNode) {
         // Helper for safe string conversion
         const strA = String(rowValue ?? '');
         const strB = String(value ?? '');
-        const lowerA = strA.toLowerCase();
-        const lowerB = strB.toLowerCase();
+        
+        const valA = isCaseSensitive ? strA : strA.toLowerCase();
+        const valB = isCaseSensitive ? strB : strB.toLowerCase();
 
-        // Exact match (insensitive)
-        if (operator === 'is') return lowerA === lowerB;
-        if (operator === 'is not') return lowerA !== lowerB;
+        // Exact match
+        if (operator === 'is') return valA === valB;
+        if (operator === 'is not') return valA !== valB;
 
         // Partial match
-        if (operator === 'contains') return lowerA.includes(lowerB);
-        if (operator === 'does not contain') return !lowerA.includes(lowerB);
-        if (operator === 'startswith') return lowerA.startsWith(lowerB);
-        if (operator === 'endswith') return lowerA.endsWith(lowerB);
+        if (operator === 'contains') return valA.includes(valB);
+        if (operator === 'does not contain') return !valA.includes(valB);
+        if (operator === 'startswith') return valA.startsWith(valB);
+        if (operator === 'endswith') return valA.endsWith(valB);
 
         // List match
         if (operator === 'in') {
-            const options = strB.split(',').map(s => s.trim().toLowerCase()).filter(s => s !== '');
-            return options.includes(lowerA);
+            const options = strB.split(',').map(s => s.trim());
+            const finalOptions = isCaseSensitive ? options : options.map(o => o.toLowerCase());
+            return finalOptions.includes(valA);
         }
         if (operator === 'not in') {
-            const options = strB.split(',').map(s => s.trim().toLowerCase()).filter(s => s !== '');
-            return !options.includes(lowerA);
+            const options = strB.split(',').map(s => s.trim());
+            const finalOptions = isCaseSensitive ? options : options.map(o => o.toLowerCase());
+            return !finalOptions.includes(valA);
         }
 
         // Regex
         if (operator === 'regexp') {
              try {
-                const regex = new RegExp(strB, 'i');
+                const regex = new RegExp(strB, isCaseSensitive ? '' : 'i');
                 return regex.test(strA);
             } catch (e) {
                 return false; // Invalid regex doesn't match
