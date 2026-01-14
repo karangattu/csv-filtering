@@ -10,10 +10,11 @@ import { ColumnStatistics } from './components/ColumnStatistics';
 import { DataQualityPanel } from './components/DataQualityPanel';
 import { DataCleaningPanel } from './components/DataCleaningPanel';
 import { PivotTable } from './components/PivotTable';
+import { AnonymizePanel } from './components/AnonymizePanel';
 import { useFilter } from './hooks/useFilter';
 import { useDarkMode } from './hooks/useDarkMode';
 import { detectColumnTypes, applyFilter, performJoin, detectSmartColumnTypes, cn } from './lib/utils';
-import { Filter, Download, LayoutGrid, Table as TableIcon, Grid3X3, Shield, Sparkles, BarChart3 } from 'lucide-react';
+import { Filter, Download, LayoutGrid, Table as TableIcon, Grid3X3, Shield, Sparkles, BarChart3, ShieldCheck } from 'lucide-react';
 import Papa from 'papaparse';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
     const [isStatsOpen, setIsStatsOpen] = useState(false);
     const [isQualityPanelOpen, setIsQualityPanelOpen] = useState(false);
     const [isCleaningPanelOpen, setIsCleaningPanelOpen] = useState(false);
+    const [isAnonymizePanelOpen, setIsAnonymizePanelOpen] = useState(false);
 
     const { filterTree, addCondition, addGroup, removeNode, updateNode, setFilterTree } = useFilter();
     const { theme, toggleTheme } = useDarkMode();
@@ -167,17 +169,21 @@ function App() {
         setIsCleaningPanelOpen(false);
     }, [activeTable, tables]);
 
-    const handleDownload = () => {
-        const csv = Papa.unparse(filteredData);
+    const handleDownload = (dataToDownload = filteredData, filename = 'filtered_data.csv') => {
+        const csv = Papa.unparse(dataToDownload);
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', 'filtered_data.csv');
+        link.setAttribute('download', filename);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
+
+    const handleAnonymizedDownload = useCallback((anonymizedData) => {
+        handleDownload(anonymizedData, 'anonymized_data.csv');
+    }, []);
 
     return (
         <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans text-gray-900 dark:text-gray-100 transition-colors duration-300`}>
@@ -255,6 +261,15 @@ function App() {
                             onApply={handleCleaningApply}
                         />
 
+                        <AnonymizePanel
+                            data={filteredData}
+                            columns={joinedData.columns}
+                            smartTypes={joinedData.smartTypes}
+                            isOpen={isAnonymizePanelOpen}
+                            onClose={() => setIsAnonymizePanelOpen(false)}
+                            onDownload={handleAnonymizedDownload}
+                        />
+
                         {/* Action Bar */}
                         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <button
@@ -312,12 +327,21 @@ function App() {
                                 </div>
 
                                 <button
-                                    onClick={handleDownload}
+                                    onClick={() => handleDownload()}
                                     disabled={filteredData.length === 0}
                                     className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <Download size={18} />
                                     Download CSV
+                                </button>
+
+                                <button
+                                    onClick={() => setIsAnonymizePanelOpen(true)}
+                                    disabled={filteredData.length === 0}
+                                    className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-4 py-2 rounded-lg font-medium shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <ShieldCheck size={18} />
+                                    Anonymize & Download
                                 </button>
                             </div>
                         </div>
