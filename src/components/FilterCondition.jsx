@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Trash2, ChevronDown, X, Check } from 'lucide-react';
 
 const OPERATORS_BY_TYPE = {
@@ -28,7 +29,23 @@ const MAX_DROPDOWN_VALUES = 50;
  */
 function MultiSelectDropdown({ options, selectedValues, onChange }) {
     const [isOpen, setIsOpen] = useState(false);
+    const triggerRef = useRef(null);
+    const [dropdownStyle, setDropdownStyle] = useState({});
     const selected = selectedValues ? selectedValues.split(',').map(v => v.trim()).filter(Boolean) : [];
+
+    // Update dropdown position when opened
+    useEffect(() => {
+        if (isOpen && triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            setDropdownStyle({
+                position: 'fixed',
+                top: rect.bottom + 4,
+                left: rect.left,
+                width: rect.width,
+                zIndex: 9999,
+            });
+        }
+    }, [isOpen]);
 
     const toggleValue = (val) => {
         const newSelected = selected.includes(val)
@@ -46,6 +63,7 @@ function MultiSelectDropdown({ options, selectedValues, onChange }) {
     return (
         <div className="relative">
             <div
+                ref={triggerRef}
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full min-h-[30px] border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 cursor-pointer flex flex-wrap gap-1 items-center"
             >
@@ -69,10 +87,13 @@ function MultiSelectDropdown({ options, selectedValues, onChange }) {
                 <ChevronDown size={14} className="ml-auto text-gray-400" />
             </div>
 
-            {isOpen && (
+            {isOpen && createPortal(
                 <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 max-h-48 overflow-auto">
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsOpen(false)} />
+                    <div
+                        style={dropdownStyle}
+                        className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-48 overflow-auto"
+                    >
                         {options.map((opt, idx) => (
                             <div
                                 key={idx}
@@ -90,12 +111,13 @@ function MultiSelectDropdown({ options, selectedValues, onChange }) {
                             </div>
                         ))}
                     </div>
-                </>
+                </>,
+                document.body
             )}
 
             {/* Count badge */}
             {selected.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium z-10">
                     {selected.length}
                 </span>
             )}
