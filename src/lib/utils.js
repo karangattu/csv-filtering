@@ -8,10 +8,15 @@ export function cn(...inputs) {
 export function detectType(value) {
     if (value === null || value === undefined || value === '') return 'string';
 
-    if (!isNaN(Number(value)) && value.trim() !== '') return 'number';
+    if (!isNaN(Number(value)) && String(value).trim() !== '') return 'number';
 
-    const date = new Date(value);
-    if (!isNaN(date.getTime()) && value.length > 5) return 'date'; // Simple heuristic
+    // Check for date/datetime patterns more carefully
+    const strVal = String(value).trim();
+    // Look for date-like patterns (contains / or - with numbers)
+    if (/\d{1,4}[\/-]\d{1,2}[\/-]\d{1,4}/.test(strVal)) {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) return 'date';
+    }
 
     return 'string';
 }
@@ -460,7 +465,8 @@ const SMART_TYPE_PATTERNS = {
     phone: /^[\+]?[(]?[0-9]{1,3}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,4}[-\s\.]?[0-9]{1,9}$/,
     url: /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i,
     currency: /^[$€£¥₹]?\s?-?\d{1,3}(,\d{3})*(\.\d{1,2})?$|^-?\d+(\.\d{1,2})?\s?[$€£¥₹]?$/,
-    date: /^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$|^\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}$/,
+    // Date formats: YYYY-MM-DD, MM/DD/YYYY, DD-MM-YYYY, with optional time HH:MM:SS AM/PM
+    datetime: /^(\d{4}[-\/]\d{1,2}[-\/]\d{1,2}|\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})(\s+\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM|am|pm)?)?$/,
     percentage: /^-?\d+(\.\d+)?%$/,
     zipcode: /^\d{5}(-\d{4})?$|^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i
 };

@@ -7,6 +7,7 @@ const SMART_TYPE_CONFIG = {
     url: { icon: Link, label: 'URL', color: 'text-purple-500', bg: 'bg-purple-100 dark:bg-purple-900/30' },
     currency: { icon: DollarSign, label: 'Currency', color: 'text-amber-500', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     date: { icon: Calendar, label: 'Date', color: 'text-pink-500', bg: 'bg-pink-100 dark:bg-pink-900/30' },
+    datetime: { icon: Calendar, label: 'DateTime', color: 'text-pink-500', bg: 'bg-pink-100 dark:bg-pink-900/30' },
     percentage: { icon: Percent, label: 'Percent', color: 'text-cyan-500', bg: 'bg-cyan-100 dark:bg-cyan-900/30' },
     zipcode: { icon: MapPin, label: 'Zip', color: 'text-orange-500', bg: 'bg-orange-100 dark:bg-orange-900/30' }
 };
