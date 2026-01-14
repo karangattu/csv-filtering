@@ -16,6 +16,8 @@ const OPERATORS_BY_TYPE = {
         'is empty', 'is not empty'
     ],
     date: [
+        'is on', 'is not on',
+        'is between',
         'is before', 'is after',
         'is empty', 'is not empty'
     ],
@@ -209,6 +211,29 @@ export function FilterCondition({ node, columns, types, updateNode, removeNode, 
                                 {uniqueValues.length}
                             </span>
                         </div>
+                    ) : fieldType === 'date' && operator === 'is between' ? (
+                        (() => {
+                            const [start = '', end = ''] = String(value || '').split('|');
+                            return (
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="date"
+                                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        value={start}
+                                        onChange={(e) => updateNode(node.id, { value: `${e.target.value}|${end}` })}
+                                        aria-label="Start date"
+                                    />
+                                    <span className="text-gray-400 text-sm">to</span>
+                                    <input
+                                        type="date"
+                                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        value={end}
+                                        onChange={(e) => updateNode(node.id, { value: `${start}|${e.target.value}` })}
+                                        aria-label="End date"
+                                    />
+                                </div>
+                            );
+                        })()
                     ) : fieldType === 'date' ? (
                         <input
                             type="date"

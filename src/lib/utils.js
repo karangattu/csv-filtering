@@ -5,18 +5,127 @@ export function cn(...inputs) {
     return twMerge(clsx(inputs));
 }
 
+function isBlank(value) {
+    return value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
+}
+
+// Parses common CSV date/datetime strings into parts.
+// Supported examples:
+// - 2025-01-14
+// - 2025/01/14
+// - 1/14/2025
+// - 1/14/2025 11:31:53 AM
+// - 1/14/2025 23:31:53
+// - 2025-01-14T23:31:53
+function parseFlexibleDateParts(input) {
+    if (input instanceof Date) {
+        if (Number.isNaN(input.getTime())) return null;
+        return {
+            year: input.getFullYear(),
+            month: input.getMonth() + 1,
+            day: input.getDate(),
+            hour: input.getHours(),
+            minute: input.getMinutes(),
+            second: input.getSeconds(),
+            hasTime: input.getHours() !== 0 || input.getMinutes() !== 0 || input.getSeconds() !== 0
+        };
+    }
+
+    if (isBlank(input)) return null;
+
+    const raw = String(input).trim().replace('T', ' ');
+
+    // Split date and time (time is optional)
+    const match = raw.match(/^(.+?)(?:\s+(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?))?$/);
+    const datePart = (match?.[1] ?? raw).trim();
+    const timePart = (match?.[2] ?? '').trim();
+
+    // Date part: either YYYY-MM-DD(/) or M/D/YYYY (/-)
+    const dateMatch = datePart.match(/^(\d{1,4})[\/-](\d{1,2})[\/-](\d{1,4})$/);
+    if (!dateMatch) return null;
+
+    const a = Number(dateMatch[1]);
+    const b = Number(dateMatch[2]);
+    const c = Number(dateMatch[3]);
+
+    let year;
+    let month;
+    let day;
+
+    // Prefer YYYY-MM-DD when first token is 4 digits.
+    if (String(dateMatch[1]).length === 4) {
+        year = a;
+        month = b;
+        day = c;
+    } else {
+        // Assume US-style M/D/YYYY for CSV exports.
+        month = a;
+        day = b;
+        year = c;
+
+        // If year is 2 digits, coerce to 2000-2099.
+        if (year < 100) year += 2000;
+    }
+
+    if (!(year >= 1 && year <= 9999 && month >= 1 && month <= 12 && day >= 1 && day <= 31)) return null;
+
+    let hour = 0;
+    let minute = 0;
+    let second = 0;
+    let hasTime = false;
+
+    if (timePart) {
+        const timeMatch = timePart.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?$/);
+        if (!timeMatch) return null;
+
+        hour = Number(timeMatch[1]);
+        minute = Number(timeMatch[2]);
+        second = timeMatch[3] ? Number(timeMatch[3]) : 0;
+        const meridiem = timeMatch[4]?.toLowerCase();
+
+        if (minute > 59 || second > 59) return null;
+
+        if (meridiem) {
+            if (hour < 1 || hour > 12) return null;
+            if (hour === 12) hour = 0;
+            if (meridiem === 'pm') hour += 12;
+        } else {
+            if (hour > 23) return null;
+        }
+
+        hasTime = true;
+    }
+
+    // Validate day/month properly (e.g. Feb 30)
+    const check = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    if (
+        check.getUTCFullYear() !== year ||
+        check.getUTCMonth() + 1 !== month ||
+        check.getUTCDate() !== day
+    ) {
+        return null;
+    }
+
+    return { year, month, day, hour, minute, second, hasTime };
+}
+
+function dateOnlyKeyUTC(parts) {
+    // Calendar-day key, independent of local timezone.
+    return Date.UTC(parts.year, parts.month - 1, parts.day);
+}
+
+function dateTimeKeyUTC(parts) {
+    return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+}
+
 export function detectType(value) {
     if (value === null || value === undefined || value === '') return 'string';
 
     if (!isNaN(Number(value)) && String(value).trim() !== '') return 'number';
 
     // Check for date/datetime patterns more carefully
-    const strVal = String(value).trim();
-    // Look for date-like patterns (contains / or - with numbers)
-    if (/\d{1,4}[\/-]\d{1,2}[\/-]\d{1,4}/.test(strVal)) {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) return 'date';
-    }
+    const parts = parseFlexibleDateParts(value);
+    if (parts) return 'date';
 
     return 'string';
 }
@@ -125,14 +234,48 @@ export function applyFilter(row, filterNode, isCaseSensitive = false) {
             if (operator === '≤') return numA <= numB;
         }
 
-        // 3. DATETIME
-        // Valid dates check
-        const dateA = new Date(rowValue);
-        const dateB = new Date(value);
+        // 3. DATE / DATETIME
+        // Use tolerant parsing and compare by calendar date when the filter value is date-only.
+        if (!isBlank(rowValue) && !isBlank(value)) {
+            if (operator === 'is on' || operator === 'is not on') {
+                const aParts = parseFlexibleDateParts(rowValue);
+                const bParts = parseFlexibleDateParts(value);
+                if (aParts && bParts) {
+                    const keyA = dateOnlyKeyUTC(aParts);
+                    const keyB = dateOnlyKeyUTC(bParts);
+                    if (operator === 'is on') return keyA === keyB;
+                    if (operator === 'is not on') return keyA !== keyB;
+                }
+            }
 
-        if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime()) && rowValue !== '' && value !== '') {
-            if (operator === 'is before') return dateA < dateB;
-            if (operator === 'is after') return dateA > dateB;
+            if (operator === 'is between') {
+                const [startRaw = '', endRaw = ''] = String(value).split('|');
+                if (!isBlank(startRaw) && !isBlank(endRaw)) {
+                    const aParts = parseFlexibleDateParts(rowValue);
+                    const startParts = parseFlexibleDateParts(startRaw);
+                    const endParts = parseFlexibleDateParts(endRaw);
+                    if (aParts && startParts && endParts) {
+                        const keyA = dateOnlyKeyUTC(aParts);
+                        const keyStart = dateOnlyKeyUTC(startParts);
+                        const keyEnd = dateOnlyKeyUTC(endParts);
+                        const lo = Math.min(keyStart, keyEnd);
+                        const hi = Math.max(keyStart, keyEnd);
+                        return keyA >= lo && keyA <= hi;
+                    }
+                }
+            }
+
+            if (operator === 'is before' || operator === 'is after') {
+                const aParts = parseFlexibleDateParts(rowValue);
+                const bParts = parseFlexibleDateParts(value);
+                if (aParts && bParts) {
+                    const isFilterDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim()) && !bParts.hasTime;
+                    const keyA = isFilterDateOnly ? dateOnlyKeyUTC(aParts) : dateTimeKeyUTC(aParts);
+                    const keyB = isFilterDateOnly ? dateOnlyKeyUTC(bParts) : dateTimeKeyUTC(bParts);
+                    if (operator === 'is before') return keyA < keyB;
+                    if (operator === 'is after') return keyA > keyB;
+                }
+            }
         }
 
         return false;

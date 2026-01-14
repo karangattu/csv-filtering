@@ -10,6 +10,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173/csv-filtering/',
     trace: 'on-first-retry',
+    timezoneId: 'America/Los_Angeles',
   },
   projects: [
     {

@@ -93,6 +93,110 @@ test.describe('CSV Filtering App', () => {
     await expect(page.locator('td').filter({ hasText: 'Tom' }).first()).toBeVisible();
   });
 
+  test('should filter mixed date and datetime values by calendar date', async ({ page }) => {
+    const csvContent = [
+      'id,date_submitted',
+      'a,1/1/2025',
+      'b,1/1/2025 23:30:00',
+      'c,1/2/2025 00:10:00',
+    ].join('\n');
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'mixed_dates.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csvContent, 'utf-8'),
+    });
+    await page.waitForSelector('table');
+
+    // Add filter
+    await page.getByRole('button', { name: /Condition/i }).click();
+    await page.locator('select').first().waitFor();
+
+    // date_submitted is detected as a date column and uses a date picker input.
+    await page.locator('select').first().selectOption('date_submitted');
+    await page.locator('select').nth(1).selectOption('is before');
+    await page.locator('input[type="date"]').fill('2025-01-02');
+
+    await page.waitForTimeout(500);
+
+    // Rows a and b are on 1/1/2025 (b has a time component) and must remain.
+    await expect(page.locator('td').filter({ hasText: /^a$/ }).first()).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^b$/ }).first()).toBeVisible();
+
+    // Row c is 1/2/2025 and should be filtered out.
+    await expect(page.locator('td').filter({ hasText: /^c$/ })).toHaveCount(0);
+  });
+
+  test('should support date operators is on / is not on', async ({ page }) => {
+    const csvContent = [
+      'id,date_submitted',
+      'a,1/1/2025',
+      'b,1/1/2025 11:31:53 AM',
+      'c,1/2/2025 00:10:00',
+    ].join('\n');
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'mixed_dates_on.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csvContent, 'utf-8'),
+    });
+    await page.waitForSelector('table');
+
+    await page.getByRole('button', { name: /Condition/i }).click();
+    await page.locator('select').first().waitFor();
+
+    await page.locator('select').first().selectOption('date_submitted');
+    await page.locator('select').nth(1).selectOption('is on');
+    await page.locator('input[type="date"]').fill('2025-01-01');
+    await page.waitForTimeout(500);
+
+    await expect(page.locator('td').filter({ hasText: /^a$/ }).first()).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^b$/ }).first()).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^c$/ })).toHaveCount(0);
+
+    // Switch operator to "is not on" and confirm only c remains.
+    await page.locator('select').nth(1).selectOption('is not on');
+    await page.locator('input[type="date"]').fill('2025-01-01');
+    await page.waitForTimeout(500);
+    await expect(page.locator('td').filter({ hasText: /^c$/ }).first()).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^a$/ })).toHaveCount(0);
+    await expect(page.locator('td').filter({ hasText: /^b$/ })).toHaveCount(0);
+  });
+
+  test('should support date operator is between (inclusive)', async ({ page }) => {
+    const csvContent = [
+      'id,date_submitted',
+      'a,1/1/2025',
+      'b,1/1/2025 11:31:53 AM',
+      'c,1/2/2025 00:10:00',
+      'd,1/3/2025',
+    ].join('\n');
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'mixed_dates_between.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csvContent, 'utf-8'),
+    });
+    await page.waitForSelector('table');
+
+    await page.getByRole('button', { name: /Condition/i }).click();
+    await page.locator('select').first().waitFor();
+
+    await page.locator('select').first().selectOption('date_submitted');
+    await page.locator('select').nth(1).selectOption('is between');
+
+    const dateInputs = page.locator('input[type="date"]');
+    await expect(dateInputs).toHaveCount(2);
+    await dateInputs.nth(0).fill('2025-01-01');
+    await dateInputs.nth(1).fill('2025-01-02');
+    await page.waitForTimeout(500);
+
+    await expect(page.locator('td').filter({ hasText: /^a$/ }).first()).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^b$/ }).first()).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^c$/ }).first()).toBeVisible();
+    await expect(page.locator('td').filter({ hasText: /^d$/ })).toHaveCount(0);
+  });
+
   test('should handle multi-table joins', async ({ page }) => {
     // Upload guests.csv
     await page.locator('input[type="file"]').setInputFiles(path.resolve('guests.csv'));
