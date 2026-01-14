@@ -54,38 +54,80 @@ export function applyFilter(row, filterNode) {
         const { field, operator, value } = filterNode;
         const rowValue = row[field];
 
-        if (operator === 'is empty') return rowValue === '' || rowValue === null || rowValue === undefined;
-        if (operator === 'is not empty') return rowValue !== '' && rowValue !== null && rowValue !== undefined;
+        // --- EMPTY CHECKS (Type Agnostic) ---
+        if (operator === 'is empty') {
+            return rowValue === '' || rowValue === null || rowValue === undefined || (typeof rowValue === 'string' && rowValue.trim() === '');
+        }
+        if (operator === 'is not empty') {
+            return rowValue !== '' && rowValue !== null && rowValue !== undefined && !(typeof rowValue === 'string' && rowValue.trim() === '');
+        }
 
         if (!field) return true;
 
-        // Type conversion for comparison
-        // We assume the type matches the inference, but we handle safe conversion
-        let valA = rowValue;
-        let valB = value;
+        // --- TYPE SPECIFIC COMPARISONS ---
+        
+        // 1. TEXT / STRING
+        // Helper for safe string conversion
+        const strA = String(rowValue ?? '');
+        const strB = String(value ?? '');
+        const lowerA = strA.toLowerCase();
+        const lowerB = strB.toLowerCase();
 
-        // Simple comparison logic
-        if (operator === 'contains') return String(valA).toLowerCase().includes(String(valB).toLowerCase());
-        if (operator === 'does not contain') return !String(valA).toLowerCase().includes(String(valB).toLowerCase());
-        if (operator === 'is') return String(valA) === String(valB);
-        if (operator === 'is not') return String(valA) !== String(valB);
+        // Exact match (insensitive)
+        if (operator === 'is') return lowerA === lowerB;
+        if (operator === 'is not') return lowerA !== lowerB;
 
-        // Numeric
-        const numA = Number(valA);
-        const numB = Number(valB);
-        if (!isNaN(numA) && !isNaN(numB)) {
-            if (operator === '=') return numA === numB;
-            if (operator === '>') return numA > numB;
-            if (operator === '<') return numA < numB;
-            if (operator === '>=') return numA >= numB;
-            if (operator === '<=') return numA <= numB;
+        // Partial match
+        if (operator === 'contains') return lowerA.includes(lowerB);
+        if (operator === 'does not contain') return !lowerA.includes(lowerB);
+        if (operator === 'startswith') return lowerA.startsWith(lowerB);
+        if (operator === 'endswith') return lowerA.endsWith(lowerB);
+
+        // List match
+        if (operator === 'in') {
+            const options = strB.split(',').map(s => s.trim().toLowerCase()).filter(s => s !== '');
+            return options.includes(lowerA);
+        }
+        if (operator === 'not in') {
+            const options = strB.split(',').map(s => s.trim().toLowerCase()).filter(s => s !== '');
+            return !options.includes(lowerA);
         }
 
-        // Date (basic string comparison or timestamp if needed, for MVP keeping simple)
-        if (operator === 'is before') return new Date(valA) < new Date(valB);
-        if (operator === 'is after') return new Date(valA) > new Date(valB);
+        // Regex
+        if (operator === 'regexp') {
+             try {
+                const regex = new RegExp(strB, 'i');
+                return regex.test(strA);
+            } catch (e) {
+                return false; // Invalid regex doesn't match
+            }
+        }
 
-        return true;
+        // 2. NUMBER
+        const numA = Number(rowValue);
+        const numB = Number(value);
+        
+        // Check valid numbers for numeric ops
+        if (!isNaN(numA) && !isNaN(numB) && rowValue !== '' && value !== '') {
+            if (operator === '=') return numA === numB;
+            if (operator === '≠') return numA !== numB;
+            if (operator === '>') return numA > numB;
+            if (operator === '<') return numA < numB;
+            if (operator === '≥') return numA >= numB;
+            if (operator === '≤') return numA <= numB;
+        }
+
+        // 3. DATETIME
+        // Valid dates check
+        const dateA = new Date(rowValue);
+        const dateB = new Date(value);
+
+        if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime()) && rowValue !== '' && value !== '') {
+            if (operator === 'is before') return dateA < dateB;
+            if (operator === 'is after') return dateA > dateB;
+        }
+
+        return false;
     }
     return true;
 }

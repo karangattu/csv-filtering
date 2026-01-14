@@ -139,7 +139,7 @@ function App() {
                         {/* Content Area */}
                         <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                             {activeTab === 'table' ? (
-                                <DataTable data={filteredData} />
+                                <DataTable data={filteredData} types={columnTypes} />
                             ) : (
                                 <ChartsView data={filteredData} columns={columns} types={columnTypes} />
                             )}

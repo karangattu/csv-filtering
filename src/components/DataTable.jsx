@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Eye, Search } from 'lucide-react';
 
-export function DataTable({ data }) {
+export function DataTable({ data, types }) {
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(50);
     const [searchTerm, setSearchTerm] = useState('');
@@ -70,6 +70,25 @@ export function DataTable({ data }) {
         }
         return sortableItems;
     }, [searchedData, sortConfig]);
+
+    // 2.5 Column Sums (computed on sortedData which represents the full filtered/searched dataset)
+    const columnSums = useMemo(() => {
+        if (!sortedData || sortedData.length === 0 || !types) return {};
+
+        const sums = {};
+        allColumns.forEach(col => {
+            if (types[col] === 'number') {
+                const sum = sortedData.reduce((acc, row) => {
+                    const val = Number(row[col]);
+                    return acc + (isNaN(val) ? 0 : val);
+                }, 0);
+                // Round to 2 decimal places if needed, or keep precision? 
+                // Let's keep up to 2 decimals for display to be safe
+                sums[col] = Math.round(sum * 100) / 100;
+            }
+        });
+        return sums;
+    }, [sortedData, allColumns, types]);
 
     // Request Sort Function
     const requestSort = (key) => {
@@ -208,6 +227,23 @@ export function DataTable({ data }) {
                             </tr>
                         )}
                     </tbody>
+                    {/* Footer Sums */}
+                    <tfoot className="bg-gray-100 dark:bg-gray-900 border-t-2 border-gray-200 dark:border-gray-700 font-semibold text-gray-900 dark:text-gray-100 sticky bottom-0 z-10 shadow-md">
+                        <tr>
+                            {allColumns.filter(col => visibleColumns.includes(col)).map(col => (
+                                <td key={`sum-${col}`} className="px-6 py-3 whitespace-nowrap text-sm">
+                                    {types && types[col] === 'number' ? (
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] uppercase text-gray-500 font-normal">Sum</span>
+                                            <span>{columnSums[col]?.toLocaleString() ?? '-'}</span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-gray-400 font-normal text-xs">-</span>
+                                    )}
+                                </td>
+                            ))}
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
 
@@ -237,6 +273,6 @@ export function DataTable({ data }) {
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

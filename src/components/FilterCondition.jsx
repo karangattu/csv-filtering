@@ -2,9 +2,22 @@ import React from 'react';
 import { Trash2 } from 'lucide-react';
 
 const OPERATORS_BY_TYPE = {
-    string: ['contains', 'does not contain', 'is', 'is not', 'is empty', 'is not empty'],
-    number: ['=', '>', '<', '>=', '<=', 'is empty', 'is not empty'],
-    date: ['is', 'is before', 'is after', 'is empty', 'is not empty'], // Simplified
+    string: [
+        'is', 'is not',
+        'contains', 'does not contain',
+        'startswith', 'endswith',
+        'in', 'not in',
+        'is empty', 'is not empty',
+        'regexp'
+    ],
+    number: [
+        '=', '≠', '<', '>', '≤', '≥',
+        'is empty', 'is not empty'
+    ],
+    date: [
+        'is before', 'is after',
+        'is empty', 'is not empty'
+    ],
 };
 
 export function FilterCondition({ node, columns, types, updateNode, removeNode }) {
