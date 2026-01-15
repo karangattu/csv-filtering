@@ -5,6 +5,19 @@ export function cn(...inputs) {
     return twMerge(clsx(inputs));
 }
 
+export function normalizeColumnName(header) {
+    if (header === null || header === undefined) return '';
+    let name = String(header);
+    name = name.replace(/^\uFEFF/, '');
+    name = name.trim();
+    if ((name.startsWith('"') && name.endsWith('"')) ||
+        (name.startsWith("'") && name.endsWith("'"))) {
+        name = name.slice(1, -1);
+    }
+    name = name.trim();
+    return name;
+}
+
 function isBlank(value) {
     return value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
 }
@@ -179,12 +192,12 @@ export function applyFilter(row, filterNode, isCaseSensitive = false) {
         if (!field) return true;
 
         // --- TYPE SPECIFIC COMPARISONS ---
-        
+
         // 1. TEXT / STRING
         // Helper for safe string conversion
         const strA = String(rowValue ?? '');
         const strB = String(value ?? '');
-        
+
         const valA = isCaseSensitive ? strA : strA.toLowerCase();
         const valB = isCaseSensitive ? strB : strB.toLowerCase();
 
@@ -212,7 +225,7 @@ export function applyFilter(row, filterNode, isCaseSensitive = false) {
 
         // Regex
         if (operator === 'regexp') {
-             try {
+            try {
                 const regex = new RegExp(strB, isCaseSensitive ? '' : 'i');
                 return regex.test(strA);
             } catch (e) {
@@ -223,7 +236,7 @@ export function applyFilter(row, filterNode, isCaseSensitive = false) {
         // 2. NUMBER
         const numA = Number(rowValue);
         const numB = Number(value);
-        
+
         // Check valid numbers for numeric ops
         if (!isNaN(numA) && !isNaN(numB) && rowValue !== '' && value !== '') {
             if (operator === '=') return numA === numB;
@@ -322,21 +335,21 @@ export function performJoin(tables, joins) {
     leftData.forEach(leftRow => {
         const key = String(leftRow[firstJoin.leftColumn] ?? '').toLowerCase();
         const matchingRightRows = rightIndex[key] || [];
-        
+
         matchingRightRows.forEach(rightRow => {
             // Combine rows with prefixed column names
             const combinedRow = {};
-            
+
             // Add left table columns
             Object.entries(leftRow).forEach(([col, val]) => {
                 combinedRow[`${firstJoin.leftTable}.${col}`] = val;
             });
-            
+
             // Add right table columns
             Object.entries(rightRow).forEach(([col, val]) => {
                 combinedRow[`${firstJoin.rightTable}.${col}`] = val;
             });
-            
+
             result.push(combinedRow);
         });
     });
@@ -345,7 +358,7 @@ export function performJoin(tables, joins) {
     for (let i = 1; i < joins.length; i++) {
         const join = joins[i];
         const nextTable = tables[join.rightTable];
-        
+
         if (!nextTable) continue;
 
         // Create index for next table
@@ -383,7 +396,7 @@ export function performJoin(tables, joins) {
     joins.forEach(join => {
         const leftTypes = tables[join.leftTable]?.types || {};
         const rightTypes = tables[join.rightTable]?.types || {};
-        
+
         Object.entries(leftTypes).forEach(([col, type]) => {
             types[`${join.leftTable}.${col}`] = type;
         });
@@ -422,7 +435,7 @@ export function calculateMode(values) {
     const frequency = {};
     let maxFreq = 0;
     let mode = values[0];
-    
+
     values.forEach(val => {
         frequency[val] = (frequency[val] || 0) + 1;
         if (frequency[val] > maxFreq) {
@@ -430,7 +443,7 @@ export function calculateMode(values) {
             mode = val;
         }
     });
-    
+
     return maxFreq > 1 ? mode : null; // No mode if all values appear once
 }
 
@@ -449,14 +462,14 @@ export function calculateStdDev(values, mean) {
  */
 export function calculateColumnStats(data, column) {
     if (!data || data.length === 0) return null;
-    
+
     const values = data
         .map(row => row[column])
         .filter(val => val !== null && val !== undefined && val !== '' && !isNaN(Number(val)))
         .map(Number);
-    
+
     if (values.length === 0) return null;
-    
+
     const sum = values.reduce((a, b) => a + b, 0);
     const mean = sum / values.length;
     const min = Math.min(...values);
@@ -464,7 +477,7 @@ export function calculateColumnStats(data, column) {
     const median = calculateMedian(values);
     const mode = calculateMode(values);
     const stdDev = calculateStdDev(values, mean);
-    
+
     // Calculate distribution for sparkline (10 buckets)
     const range = max - min;
     const bucketSize = range / 10 || 1;
@@ -473,7 +486,7 @@ export function calculateColumnStats(data, column) {
         const bucketIndex = Math.min(Math.floor((val - min) / bucketSize), 9);
         distribution[bucketIndex]++;
     });
-    
+
     return {
         count: values.length,
         sum: Math.round(sum * 100) / 100,
@@ -496,10 +509,10 @@ export function calculateColumnStats(data, column) {
  */
 export function findDuplicates(data) {
     if (!data || data.length === 0) return { duplicateIndices: [], duplicateCount: 0 };
-    
+
     const seen = new Map();
     const duplicateIndices = [];
-    
+
     data.forEach((row, index) => {
         const key = JSON.stringify(row);
         if (seen.has(key)) {
@@ -508,7 +521,7 @@ export function findDuplicates(data) {
             seen.set(key, index);
         }
     });
-    
+
     return { duplicateIndices, duplicateCount: duplicateIndices.length };
 }
 
@@ -520,9 +533,9 @@ export function findOutliers(data, column) {
         .map((row, idx) => ({ value: row[column], index: idx }))
         .filter(item => item.value !== null && item.value !== undefined && item.value !== '' && !isNaN(Number(item.value)))
         .map(item => ({ ...item, value: Number(item.value) }));
-    
+
     if (values.length < 4) return { outlierIndices: [], outlierCount: 0, bounds: null };
-    
+
     const sorted = [...values].sort((a, b) => a.value - b.value);
     const q1Index = Math.floor(sorted.length * 0.25);
     const q3Index = Math.floor(sorted.length * 0.75);
@@ -531,11 +544,11 @@ export function findOutliers(data, column) {
     const iqr = q3 - q1;
     const lowerBound = q1 - 1.5 * iqr;
     const upperBound = q3 + 1.5 * iqr;
-    
+
     const outlierIndices = values
         .filter(item => item.value < lowerBound || item.value > upperBound)
         .map(item => item.index);
-    
+
     return {
         outlierIndices,
         outlierCount: outlierIndices.length,
@@ -548,49 +561,49 @@ export function findOutliers(data, column) {
  */
 export function detectDataQuality(data, types) {
     if (!data || data.length === 0) return { overall: 0, columns: {} };
-    
+
     const columns = Object.keys(data[0]);
     const columnQuality = {};
     let totalScore = 0;
     let columnCount = 0;
-    
+
     columns.forEach(col => {
         const values = data.map(row => row[col]);
         const totalRows = values.length;
-        
+
         // Missing values
         const missingCount = values.filter(v => v === null || v === undefined || v === '' || (typeof v === 'string' && v.trim() === '')).length;
         const missingPercent = (missingCount / totalRows) * 100;
-        
+
         // Duplicate values in column
         const uniqueValues = new Set(values.filter(v => v !== null && v !== undefined && v !== ''));
         const duplicateCount = totalRows - missingCount - uniqueValues.size;
-        
+
         // Outliers (for numeric columns)
         let outlierInfo = { outlierCount: 0, bounds: null };
         if (types[col] === 'number') {
             outlierInfo = findOutliers(data, col);
         }
-        
+
         // Calculate column score (100 = perfect)
         const missingPenalty = missingPercent;
         const outlierPenalty = (outlierInfo.outlierCount / totalRows) * 50;
         const columnScore = Math.max(0, 100 - missingPenalty - outlierPenalty);
-        
+
         columnQuality[col] = {
             missing: { count: missingCount, percent: Math.round(missingPercent * 10) / 10 },
             duplicates: { count: Math.max(0, duplicateCount) },
             outliers: outlierInfo,
             score: Math.round(columnScore)
         };
-        
+
         totalScore += columnScore;
         columnCount++;
     });
-    
+
     // Row-level duplicates
     const { duplicateCount: rowDuplicates } = findDuplicates(data);
-    
+
     return {
         overall: Math.round(totalScore / columnCount),
         rowDuplicates,
@@ -619,15 +632,15 @@ const SMART_TYPE_PATTERNS = {
  */
 export function detectSmartType(value) {
     if (value === null || value === undefined || value === '') return null;
-    
+
     const str = String(value).trim();
-    
+
     for (const [type, pattern] of Object.entries(SMART_TYPE_PATTERNS)) {
         if (pattern.test(str)) {
             return type;
         }
     }
-    
+
     return null;
 }
 
@@ -636,20 +649,20 @@ export function detectSmartType(value) {
  */
 export function detectSmartColumnTypes(data) {
     if (!data || data.length === 0) return {};
-    
+
     const columns = Object.keys(data[0]);
     const result = {};
-    
+
     columns.forEach(col => {
         const nonEmptyValues = data
             .map(row => row[col])
             .filter(v => v !== null && v !== undefined && v !== '');
-        
+
         if (nonEmptyValues.length === 0) {
             result[col] = { smartType: null, validCount: 0, invalidCount: 0, validPercent: 0 };
             return;
         }
-        
+
         // Check each smart type
         const typeCounts = {};
         nonEmptyValues.forEach(val => {
@@ -658,19 +671,19 @@ export function detectSmartColumnTypes(data) {
                 typeCounts[smartType] = (typeCounts[smartType] || 0) + 1;
             }
         });
-        
+
         // Find dominant type (>50% of values)
         const totalNonEmpty = nonEmptyValues.length;
         let dominantType = null;
         let maxCount = 0;
-        
+
         for (const [type, count] of Object.entries(typeCounts)) {
             if (count > maxCount && count >= totalNonEmpty * 0.5) {
                 maxCount = count;
                 dominantType = type;
             }
         }
-        
+
         if (dominantType) {
             const validCount = typeCounts[dominantType];
             const invalidCount = totalNonEmpty - validCount;
@@ -684,7 +697,7 @@ export function detectSmartColumnTypes(data) {
             result[col] = { smartType: null, validCount: 0, invalidCount: 0, validPercent: 0 };
         }
     });
-    
+
     return result;
 }
 
@@ -699,13 +712,13 @@ export function cleanColumn(data, column, operation) {
     return data.map(row => {
         const newRow = { ...row };
         let value = row[column];
-        
+
         if (value === null || value === undefined) {
             return newRow;
         }
-        
+
         const strValue = String(value);
-        
+
         switch (operation) {
             case 'trim':
                 newRow[column] = strValue.trim();
@@ -735,7 +748,7 @@ export function cleanColumn(data, column, operation) {
             default:
                 break;
         }
-        
+
         return newRow;
     });
 }
@@ -761,7 +774,7 @@ export function removeDuplicateRows(data) {
 export function fillEmpty(data, column, fillValue) {
     return data.map(row => {
         const newRow = { ...row };
-        if (row[column] === null || row[column] === undefined || row[column] === '' || 
+        if (row[column] === null || row[column] === undefined || row[column] === '' ||
             (typeof row[column] === 'string' && row[column].trim() === '')) {
             newRow[column] = fillValue;
         }
@@ -790,21 +803,21 @@ const AGGREGATION_FUNCTIONS = {
  */
 export function createPivotData(data, config) {
     const { rowField, columnField, valueField, aggFunc = 'sum' } = config;
-    
+
     if (!rowField || !data || data.length === 0) {
         return { rows: [], columns: [], pivotData: {}, totals: {} };
     }
-    
+
     // Get unique row and column values
     const uniqueRows = [...new Set(data.map(row => row[rowField] ?? '(Empty)'))].sort();
-    const uniqueCols = columnField 
+    const uniqueCols = columnField
         ? [...new Set(data.map(row => row[columnField] ?? '(Empty)'))].sort()
         : ['Total'];
-    
+
     // Build pivot structure
     const pivotData = {};
     const totals = { row: {}, column: {}, grand: 0 };
-    
+
     uniqueRows.forEach(rowVal => {
         pivotData[rowVal] = {};
         uniqueCols.forEach(colVal => {
@@ -814,32 +827,32 @@ export function createPivotData(data, config) {
                 const matchCol = !columnField || (row[columnField] ?? '(Empty)') === colVal;
                 return matchRow && matchCol;
             });
-            
+
             // Get values and aggregate
             const values = cellData
                 .map(row => valueField ? row[valueField] : 1)
                 .filter(v => v !== null && v !== undefined && v !== '')
                 .map(v => isNaN(Number(v)) ? 0 : Number(v));
-            
+
             const aggregator = AGGREGATION_FUNCTIONS[aggFunc] || AGGREGATION_FUNCTIONS.sum;
             const result = values.length > 0 ? aggregator(values) : 0;
             pivotData[rowVal][colVal] = Math.round(result * 100) / 100;
         });
-        
+
         // Row total
         const rowValues = Object.values(pivotData[rowVal]);
         totals.row[rowVal] = Math.round(rowValues.reduce((a, b) => a + b, 0) * 100) / 100;
     });
-    
+
     // Column totals
     uniqueCols.forEach(colVal => {
         const colSum = uniqueRows.reduce((sum, rowVal) => sum + (pivotData[rowVal][colVal] || 0), 0);
         totals.column[colVal] = Math.round(colSum * 100) / 100;
     });
-    
+
     // Grand total
     totals.grand = Math.round(Object.values(totals.row).reduce((a, b) => a + b, 0) * 100) / 100;
-    
+
     return {
         rows: uniqueRows,
         columns: uniqueCols,
