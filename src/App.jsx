@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { FilterGroup } from './components/FilterGroup';
@@ -24,10 +24,11 @@ function App() {
     const [activeTab, setActiveTab] = useState('table'); // 'table' | 'charts' | 'pivot'
 
     // Join configuration state
-    const [joins, setJoins] = useState([]); // [{ leftTable, leftColumn, rightTable, rightColumn }]
+    const [joins, setJoins] = useState([]);
     const [isJoinConfigOpen, setIsJoinConfigOpen] = useState(false);
     const [isAddingTable, setIsAddingTable] = useState(false);
     const [isCaseSensitive, setIsCaseSensitive] = useState(false);
+    const [tableAliases, setTableAliases] = useState({});
 
     // Premium features state
     const [isStatsOpen, setIsStatsOpen] = useState(false);
@@ -46,7 +47,7 @@ function App() {
         if (tableNames.length === 0) return { data: [], types: {}, columns: [], smartTypes: {} };
 
         if (joins.length > 0 && tableNames.length >= 2) {
-            const result = performJoin(tables, joins);
+            const result = performJoin(tables, joins, tableAliases);
             return { ...result, smartTypes: detectSmartColumnTypes(result.data) };
         }
 
@@ -62,53 +63,61 @@ function App() {
         }
 
         return { data: [], types: {}, columns: [], smartTypes: {} };
-    }, [tables, joins, activeTable, tableNames]);
+    }, [tables, joins, activeTable, tableNames, tableAliases]);
 
-    // Combined columns from all tables for filtering (prefixed with table name)
     const allColumnsWithTables = useMemo(() => {
         const cols = [];
         tableNames.forEach(tableName => {
             const tableData = tables[tableName]?.data;
+            const alias = tableAliases[tableName] || tableName;
             if (tableData && tableData.length > 0) {
                 Object.keys(tableData[0]).forEach(col => {
-                    cols.push({ table: tableName, column: col, fullName: `${tableName}.${col}` });
+                    cols.push({ table: tableName, column: col, fullName: `${alias}.${col}` });
                 });
             }
         });
         return cols;
-    }, [tables, tableNames]);
+    }, [tables, tableNames, tableAliases]);
 
-    // Combined types for filtering
     const allTypesWithTables = useMemo(() => {
         const types = {};
         tableNames.forEach(tableName => {
             const tableTypes = tables[tableName]?.types || {};
+            const alias = tableAliases[tableName] || tableName;
             Object.entries(tableTypes).forEach(([col, type]) => {
-                types[`${tableName}.${col}`] = type;
+                types[`${alias}.${col}`] = type;
             });
         });
         return types;
-    }, [tables, tableNames]);
+    }, [tables, tableNames, tableAliases]);
 
-    // Compute unique values per column for filter dropdowns
     const columnUniqueValues = useMemo(() => {
         const data = joinedData.data;
         if (!data || data.length === 0) return {};
 
         const uniqueVals = {};
         const columns = joinedData.columns;
+        const MAX_SAMPLE_SIZE = 1000;
+        const MAX_UNIQUE_VALUES = 100;
+        const sampleData = data.length > MAX_SAMPLE_SIZE ? data.slice(0, MAX_SAMPLE_SIZE) : data;
 
-        columns.forEach(col => {
+        for (let i = 0; i < columns.length; i++) {
+            const col = columns[i];
             const valuesSet = new Set();
-            data.forEach(row => {
-                const val = row[col];
+            let reachedLimit = false;
+
+            for (let j = 0; j < sampleData.length && !reachedLimit; j++) {
+                const val = sampleData[j][col];
                 if (val !== null && val !== undefined) {
                     valuesSet.add(String(val));
+                    if (valuesSet.size >= MAX_UNIQUE_VALUES) {
+                        reachedLimit = true;
+                    }
                 }
-            });
-            // Sort values alphabetically
+            }
+
             uniqueVals[col] = Array.from(valuesSet).sort((a, b) => a.localeCompare(b));
-        });
+        }
 
         return uniqueVals;
     }, [joinedData.data, joinedData.columns]);
@@ -120,7 +129,13 @@ function App() {
             ...prev,
             [tableName]: { data: newData, types, smartTypes }
         }));
-        // Set as active table if it's the first one
+        setTableAliases(prev => {
+            if (prev[tableName]) return prev;
+            const tableCount = Object.keys(prev).length;
+            const baseName = tableName.replace(/\.(csv|xlsx?|json)$/i, '').replace(/[^a-zA-Z0-9]/g, '_');
+            const alias = baseName.length <= 6 ? baseName : `t${tableCount + 1}`;
+            return { ...prev, [tableName]: alias };
+        });
         setActiveTable(prev => prev || tableName);
         setIsAddingTable(false);
     }, []);
@@ -131,7 +146,11 @@ function App() {
             delete newTables[tableName];
             return newTables;
         });
-        // Update active table if removed
+        setTableAliases(prev => {
+            const newAliases = { ...prev };
+            delete newAliases[tableName];
+            return newAliases;
+        });
         setActiveTable(prev => {
             if (prev === tableName) {
                 const remaining = Object.keys(tables).filter(t => t !== tableName);
@@ -139,7 +158,6 @@ function App() {
             }
             return prev;
         });
-        // Remove joins referencing this table
         setJoins(prev => prev.filter(j => j.leftTable !== tableName && j.rightTable !== tableName));
     }, [tables]);
 
@@ -147,14 +165,17 @@ function App() {
         setTables({});
         setActiveTable(null);
         setJoins([]);
+        setTableAliases({});
         setFilterTree({ id: 'root', type: 'group', logic: 'AND', children: [] });
     }, [setFilterTree]);
 
-    // Apply filters to joined data
+    const deferredFilterTree = useDeferredValue(filterTree);
+    const deferredCaseSensitive = useDeferredValue(isCaseSensitive);
+
     const filteredData = useMemo(() => {
         if (joinedData.data.length === 0) return [];
-        return joinedData.data.filter(row => applyFilter(row, filterTree, isCaseSensitive));
-    }, [joinedData.data, filterTree, isCaseSensitive]);
+        return joinedData.data.filter(row => applyFilter(row, deferredFilterTree, deferredCaseSensitive));
+    }, [joinedData.data, deferredFilterTree, deferredCaseSensitive]);
 
     // Handle data cleaning updates
     const handleCleaningApply = useCallback((cleanedData) => {
@@ -241,6 +262,8 @@ function App() {
                                 tables={tables}
                                 joins={joins}
                                 onUpdateJoins={setJoins}
+                                tableAliases={tableAliases}
+                                onUpdateAliases={setTableAliases}
                                 onClose={() => setIsJoinConfigOpen(false)}
                             />
                         )}

@@ -300,14 +300,16 @@ export function applyFilter(row, filterNode, isCaseSensitive = false) {
  * Perform INNER JOIN across multiple tables based on join definitions.
  * @param {Object} tables - { tableName: { data: [], types: {} } }
  * @param {Array} joins - [{ leftTable, leftColumn, rightTable, rightColumn }]
+ * @param {Object} tableAliases - Optional { tableName: alias } for shorter column names
  * @returns {{ data: Array, types: Object, columns: Array }}
  */
-export function performJoin(tables, joins) {
+export function performJoin(tables, joins, tableAliases = {}) {
     if (!joins || joins.length === 0 || Object.keys(tables).length < 2) {
         return { data: [], types: {}, columns: [] };
     }
 
-    // Start with the first join
+    const getAlias = (tableName) => tableAliases[tableName] || tableName;
+
     const firstJoin = joins[0];
     const leftTable = tables[firstJoin.leftTable];
     const rightTable = tables[firstJoin.rightTable];
@@ -316,96 +318,98 @@ export function performJoin(tables, joins) {
         return { data: [], types: {}, columns: [] };
     }
 
-    // Perform INNER JOIN
     let result = [];
     const leftData = leftTable.data;
     const rightData = rightTable.data;
 
-    // Create index on right table for faster lookup
-    const rightIndex = {};
-    rightData.forEach(row => {
+    const rightIndex = new Map();
+    for (let i = 0; i < rightData.length; i++) {
+        const row = rightData[i];
         const key = String(row[firstJoin.rightColumn] ?? '').toLowerCase();
-        if (!rightIndex[key]) {
-            rightIndex[key] = [];
+        if (!rightIndex.has(key)) {
+            rightIndex.set(key, []);
         }
-        rightIndex[key].push(row);
-    });
+        rightIndex.get(key).push(row);
+    }
 
-    // Join
-    leftData.forEach(leftRow => {
+    const leftAlias = getAlias(firstJoin.leftTable);
+    const rightAlias = getAlias(firstJoin.rightTable);
+
+    for (let i = 0; i < leftData.length; i++) {
+        const leftRow = leftData[i];
         const key = String(leftRow[firstJoin.leftColumn] ?? '').toLowerCase();
-        const matchingRightRows = rightIndex[key] || [];
+        const matchingRightRows = rightIndex.get(key) || [];
 
-        matchingRightRows.forEach(rightRow => {
-            // Combine rows with prefixed column names
+        for (let j = 0; j < matchingRightRows.length; j++) {
+            const rightRow = matchingRightRows[j];
             const combinedRow = {};
 
-            // Add left table columns
-            Object.entries(leftRow).forEach(([col, val]) => {
-                combinedRow[`${firstJoin.leftTable}.${col}`] = val;
-            });
+            for (const col in leftRow) {
+                combinedRow[`${leftAlias}.${col}`] = leftRow[col];
+            }
 
-            // Add right table columns
-            Object.entries(rightRow).forEach(([col, val]) => {
-                combinedRow[`${firstJoin.rightTable}.${col}`] = val;
-            });
+            for (const col in rightRow) {
+                combinedRow[`${rightAlias}.${col}`] = rightRow[col];
+            }
 
             result.push(combinedRow);
-        });
-    });
+        }
+    }
 
-    // Apply subsequent joins if any
     for (let i = 1; i < joins.length; i++) {
         const join = joins[i];
         const nextTable = tables[join.rightTable];
 
         if (!nextTable) continue;
 
-        // Create index for next table
-        const nextIndex = {};
-        nextTable.data.forEach(row => {
+        const nextIndex = new Map();
+        for (let j = 0; j < nextTable.data.length; j++) {
+            const row = nextTable.data[j];
             const key = String(row[join.rightColumn] ?? '').toLowerCase();
-            if (!nextIndex[key]) {
-                nextIndex[key] = [];
+            if (!nextIndex.has(key)) {
+                nextIndex.set(key, []);
             }
-            nextIndex[key].push(row);
-        });
+            nextIndex.get(key).push(row);
+        }
 
-        // Join result with next table
         const newResult = [];
-        result.forEach(resultRow => {
-            // The left column is already prefixed
-            const leftColName = join.leftColumn.includes('.') ? join.leftColumn : `${join.leftTable}.${join.leftColumn}`;
-            const key = String(resultRow[leftColName] ?? '').toLowerCase();
-            const matchingRows = nextIndex[key] || [];
+        const joinRightAlias = getAlias(join.rightTable);
+        const leftTableAlias = getAlias(join.leftTable);
 
-            matchingRows.forEach(nextRow => {
+        for (let j = 0; j < result.length; j++) {
+            const resultRow = result[j];
+            const leftColName = join.leftColumn.includes('.') ? join.leftColumn : `${leftTableAlias}.${join.leftColumn}`;
+            const key = String(resultRow[leftColName] ?? '').toLowerCase();
+            const matchingRows = nextIndex.get(key) || [];
+
+            for (let k = 0; k < matchingRows.length; k++) {
+                const nextRow = matchingRows[k];
                 const combinedRow = { ...resultRow };
-                Object.entries(nextRow).forEach(([col, val]) => {
-                    combinedRow[`${join.rightTable}.${col}`] = val;
-                });
+                for (const col in nextRow) {
+                    combinedRow[`${joinRightAlias}.${col}`] = nextRow[col];
+                }
                 newResult.push(combinedRow);
-            });
-        });
+            }
+        }
 
         result = newResult;
     }
 
-    // Build types for joined columns
     const types = {};
     joins.forEach(join => {
         const leftTypes = tables[join.leftTable]?.types || {};
         const rightTypes = tables[join.rightTable]?.types || {};
+        const leftAlias = getAlias(join.leftTable);
+        const rightAlias = getAlias(join.rightTable);
 
-        Object.entries(leftTypes).forEach(([col, type]) => {
-            types[`${join.leftTable}.${col}`] = type;
-        });
-        Object.entries(rightTypes).forEach(([col, type]) => {
-            types[`${join.rightTable}.${col}`] = type;
-        });
+        for (const col in leftTypes) {
+            types[`${leftAlias}.${col}`] = leftTypes[col];
+        }
+        for (const col in rightTypes) {
+            types[`${rightAlias}.${col}`] = rightTypes[col];
+        }
     });
 
-    // Get columns from result
     const columns = result.length > 0 ? Object.keys(result[0]) : [];
 
     return { data: result, types, columns };
