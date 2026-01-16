@@ -13,11 +13,12 @@ import { PivotTable } from './components/PivotTable';
 import { AnonymizePanel } from './components/AnonymizePanel';
 import { useFilter } from './hooks/useFilter';
 import { useDarkMode } from './hooks/useDarkMode';
+import { ToastProvider, useToast } from './hooks/useToast';
 import { detectColumnTypes, applyFilter, performJoin, detectSmartColumnTypes, cn } from './lib/utils';
 import { Filter, Download, LayoutGrid, Table as TableIcon, Grid3X3, Shield, Sparkles, BarChart3, ShieldCheck } from 'lucide-react';
 import Papa from 'papaparse';
 
-function App() {
+function AppContent() {
     // Multi-table state: { tableName: { data: [], types: {}, smartTypes: {} } }
     const [tables, setTables] = useState({});
     const [activeTable, setActiveTable] = useState(null);
@@ -38,6 +39,7 @@ function App() {
 
     const { filterTree, addCondition, addGroup, removeNode, updateNode, setFilterTree } = useFilter();
     const { theme, toggleTheme } = useDarkMode();
+    const { toast } = useToast();
 
     const tableNames = useMemo(() => Object.keys(tables), [tables]);
     const hasData = tableNames.length > 0;
@@ -91,12 +93,14 @@ function App() {
         return types;
     }, [tables, tableNames, tableAliases]);
 
+    const deferredJoinedData = useDeferredValue(joinedData, { timeoutMs: 200 });
+
     const columnUniqueValues = useMemo(() => {
-        const data = joinedData.data;
+        const data = deferredJoinedData.data;
         if (!data || data.length === 0) return {};
 
         const uniqueVals = {};
-        const columns = joinedData.columns;
+        const columns = deferredJoinedData.columns;
         const MAX_SAMPLE_SIZE = 1000;
         const MAX_UNIQUE_VALUES = 100;
         const sampleData = data.length > MAX_SAMPLE_SIZE ? data.slice(0, MAX_SAMPLE_SIZE) : data;
@@ -120,7 +124,7 @@ function App() {
         }
 
         return uniqueVals;
-    }, [joinedData.data, joinedData.columns]);
+    }, [deferredJoinedData.data, deferredJoinedData.columns]);
 
     const handleDataLoaded = useCallback((newData, tableName) => {
         const types = detectColumnTypes(newData);
@@ -190,7 +194,12 @@ function App() {
         setIsCleaningPanelOpen(false);
     }, [activeTable, tables]);
 
-    const handleDownload = (dataToDownload = filteredData, filename = 'filtered_data.csv') => {
+    const handleDownload = useCallback((dataToDownload = filteredData, filename = 'filtered_data.csv') => {
+        if (dataToDownload.length === 0) {
+            toast.warning('No data to download');
+            return;
+        }
+
         const csv = Papa.unparse(dataToDownload);
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -200,11 +209,14 @@ function App() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    };
+        URL.revokeObjectURL(url);
+
+        toast.success(`Downloaded ${dataToDownload.length} rows to ${filename}`);
+    }, [filteredData, toast]);
 
     const handleAnonymizedDownload = useCallback((anonymizedData) => {
         handleDownload(anonymizedData, 'anonymized_data.csv');
-    }, []);
+    }, [handleDownload]);
 
     return (
         <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans text-gray-900 dark:text-gray-100 transition-colors duration-300`}>
@@ -446,6 +458,14 @@ function App() {
                 )}
             </main>
         </div>
+    );
+}
+
+function App() {
+    return (
+        <ToastProvider>
+            <AppContent />
+        </ToastProvider>
     );
 }
 

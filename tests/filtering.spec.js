@@ -44,12 +44,13 @@ test.describe('CSV Filtering App', () => {
     // Add filter
     await page.getByRole('button', { name: /Condition/i }).click();
 
-    // Wait for the condition row to appear
-    await page.locator('select').first().waitFor();
+    // Wait for the condition row to appear and use more specific selectors
+    await page.locator('.border-gray-300.dark\\:border-gray-600').first().waitFor();
 
-    // Set condition: name contains "Jane" - for SINGLE TABLE, options are NOT prefixed!
-    await page.locator('select').first().selectOption('name');
-    await page.locator('select').nth(1).selectOption('contains');
+    // Set condition: name contains "Jane" - use specific selectors within the filter section
+    const filterSection = page.locator('.bg-white.dark\\:bg-gray-800').filter({ has: page.locator('select').first() }).first();
+    await filterSection.locator('select').first().selectOption('name');
+    await filterSection.locator('select').nth(1).selectOption('contains');
     await page.getByPlaceholder(/unique values|Enter text/i).fill('Jane');
 
     // Wait for filter to take effect
@@ -68,12 +69,12 @@ test.describe('CSV Filtering App', () => {
     await page.waitForSelector('table');
 
     await page.getByRole('button', { name: /Condition/i }).click();
-    await page.locator('select').first().waitFor();
+    await page.locator('.border-gray-300.dark\\:border-gray-600').first().waitFor();
 
     // Default: Case Insensitive - "tom" should match "Tom"
-    // For SINGLE TABLE, options are NOT prefixed!
-    await page.locator('select').first().selectOption('name');
-    await page.locator('select').nth(1).selectOption('contains');
+    const filterSection = page.locator('.bg-white.dark\\:bg-gray-800').filter({ has: page.locator('select').first() }).first();
+    await filterSection.locator('select').first().selectOption('name');
+    await filterSection.locator('select').nth(1).selectOption('contains');
     await page.getByPlaceholder(/unique values|Enter text/i).fill('tom');
     await page.waitForTimeout(500);
 
@@ -143,10 +144,11 @@ test.describe('CSV Filtering App', () => {
     await page.waitForSelector('table');
 
     await page.getByRole('button', { name: /Condition/i }).click();
-    await page.locator('select').first().waitFor();
+    await page.locator('.border-gray-300.dark\\:border-gray-600').first().waitFor();
 
-    await page.locator('select').first().selectOption('date_submitted');
-    await page.locator('select').nth(1).selectOption('is on');
+    const filterSection = page.locator('.bg-white.dark\\:bg-gray-800').filter({ has: page.locator('select').first() }).first();
+    await filterSection.locator('select').first().selectOption('date_submitted');
+    await filterSection.locator('select').nth(1).selectOption('is on');
     await page.locator('input[type="date"]').fill('2025-01-01');
     await page.waitForTimeout(500);
 
@@ -155,7 +157,7 @@ test.describe('CSV Filtering App', () => {
     await expect(page.locator('td').filter({ hasText: /^c$/ })).toHaveCount(0);
 
     // Switch operator to "is not on" and confirm only c remains.
-    await page.locator('select').nth(1).selectOption('is not on');
+    await filterSection.locator('select').nth(1).selectOption('is not on');
     await page.locator('input[type="date"]').fill('2025-01-01');
     await page.waitForTimeout(500);
     await expect(page.locator('td').filter({ hasText: /^c$/ }).first()).toBeVisible();
@@ -180,10 +182,11 @@ test.describe('CSV Filtering App', () => {
     await page.waitForSelector('table');
 
     await page.getByRole('button', { name: /Condition/i }).click();
-    await page.locator('select').first().waitFor();
+    await page.locator('.border-gray-300.dark\\:border-gray-600').first().waitFor();
 
-    await page.locator('select').first().selectOption('date_submitted');
-    await page.locator('select').nth(1).selectOption('is between');
+    const filterSection = page.locator('.bg-white.dark\\:bg-gray-800').filter({ has: page.locator('select').first() }).first();
+    await filterSection.locator('select').first().selectOption('date_submitted');
+    await filterSection.locator('select').nth(1).selectOption('is between');
 
     const dateInputs = page.locator('input[type="date"]');
     await expect(dateInputs).toHaveCount(2);

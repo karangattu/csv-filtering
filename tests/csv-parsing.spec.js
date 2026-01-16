@@ -198,10 +198,11 @@ test.describe('CSV Parsing Robustness', () => {
         await page.waitForSelector('table');
 
         await page.getByRole('button', { name: /Condition/i }).click();
-        await page.locator('select').first().waitFor();
+        await page.locator('.border-gray-300.dark\\:border-gray-600').first().waitFor();
 
-        await page.locator('select').first().selectOption('Full Name');
-        await page.locator('select').nth(1).selectOption('contains');
+        const filterSection = page.locator('.bg-white.dark\\:bg-gray-800').filter({ has: page.locator('select').first() }).first();
+        await filterSection.locator('select').first().selectOption('Full Name');
+        await filterSection.locator('select').nth(1).selectOption('contains');
         await page.getByPlaceholder(/unique values|Enter text/i).fill('Alice');
 
         await page.waitForTimeout(500);
