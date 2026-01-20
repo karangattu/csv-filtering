@@ -206,7 +206,7 @@ test.describe('CSV Filtering App', () => {
     await page.waitForSelector('table');
 
     // Add attendance.csv
-    await page.getByRole('button', { name: /Add Table/i }).click();
+    await page.getByRole('button', { name: /Add another table/i }).click();
     await page.locator('input[type="file"]').setInputFiles(path.resolve('attendance.csv'));
     await page.waitForTimeout(500);
 

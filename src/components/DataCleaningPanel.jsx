@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Sparkles, X, Trash2, Type, CaseSensitive, Hash, Eye, Check, RotateCcw } from 'lucide-react';
 import { cleanColumn, removeDuplicateRows } from '../lib/utils';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 const CLEANING_OPERATIONS = [
     { id: 'trim', label: 'Trim Whitespace', icon: Sparkles, description: 'Remove leading and trailing spaces' },
@@ -81,25 +82,38 @@ export function DataCleaningPanel({ data, columns, isOpen, onClose, onApply }) {
         }
     };
 
+    // Focus trap for modal accessibility
+    const handleEscape = useCallback(() => onClose(), [onClose]);
+    const modalRef = useFocusTrap(isOpen, { onEscape: handleEscape });
+
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-300">
+        <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cleaning-panel-title"
+        >
+            <div 
+                ref={modalRef}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-300"
+            >
                 {/* Header */}
                 <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-6 py-5 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="bg-white/20 p-2 rounded-lg">
+                        <div className="bg-white/20 p-2 rounded-lg" aria-hidden="true">
                             <Sparkles className="text-white" size={24} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-white">Data Cleaning</h2>
+                            <h2 id="cleaning-panel-title" className="text-xl font-bold text-white">Data Cleaning</h2>
                             <p className="text-violet-100 text-sm">Transform and clean your data</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
                         className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+                        aria-label="Close data cleaning panel"
                     >
                         <X size={20} />
                     </button>

@@ -321,6 +321,7 @@ export function performJoin(tables, joins, tableAliases = {}) {
     let result = [];
     const leftData = leftTable.data;
     const rightData = rightTable.data;
+    const joinType = firstJoin.joinType || 'inner';
 
     const rightIndex = new Map();
     for (let i = 0; i < rightData.length; i++) {
@@ -335,24 +336,72 @@ export function performJoin(tables, joins, tableAliases = {}) {
     const leftAlias = getAlias(firstJoin.leftTable);
     const rightAlias = getAlias(firstJoin.rightTable);
 
+    // Get all column names for null filling
+    const leftColumns = leftData.length > 0 ? Object.keys(leftData[0]) : [];
+    const rightColumns = rightData.length > 0 ? Object.keys(rightData[0]) : [];
+
+    // Track which right rows have been matched (for RIGHT and FULL OUTER joins)
+    const matchedRightKeys = new Set();
+
+    // Process left table rows
     for (let i = 0; i < leftData.length; i++) {
         const leftRow = leftData[i];
         const key = String(leftRow[firstJoin.leftColumn] ?? '').toLowerCase();
         const matchingRightRows = rightIndex.get(key) || [];
 
-        for (let j = 0; j < matchingRightRows.length; j++) {
-            const rightRow = matchingRightRows[j];
+        if (matchingRightRows.length > 0) {
+            // Mark this key as matched
+            matchedRightKeys.add(key);
+
+            for (let j = 0; j < matchingRightRows.length; j++) {
+                const rightRow = matchingRightRows[j];
+                const combinedRow = {};
+
+                for (const col of leftColumns) {
+                    combinedRow[`${leftAlias}.${col}`] = leftRow[col];
+                }
+
+                for (const col of rightColumns) {
+                    combinedRow[`${rightAlias}.${col}`] = rightRow[col];
+                }
+
+                result.push(combinedRow);
+            }
+        } else if (joinType === 'left' || joinType === 'full') {
+            // LEFT or FULL OUTER: include left row with nulls for right columns
             const combinedRow = {};
 
-            for (const col in leftRow) {
+            for (const col of leftColumns) {
                 combinedRow[`${leftAlias}.${col}`] = leftRow[col];
             }
 
-            for (const col in rightRow) {
-                combinedRow[`${rightAlias}.${col}`] = rightRow[col];
+            for (const col of rightColumns) {
+                combinedRow[`${rightAlias}.${col}`] = null;
             }
 
             result.push(combinedRow);
+        }
+    }
+
+    // For RIGHT and FULL OUTER joins: add unmatched right rows
+    if (joinType === 'right' || joinType === 'full') {
+        for (let i = 0; i < rightData.length; i++) {
+            const rightRow = rightData[i];
+            const key = String(rightRow[firstJoin.rightColumn] ?? '').toLowerCase();
+
+            if (!matchedRightKeys.has(key)) {
+                const combinedRow = {};
+
+                for (const col of leftColumns) {
+                    combinedRow[`${leftAlias}.${col}`] = null;
+                }
+
+                for (const col of rightColumns) {
+                    combinedRow[`${rightAlias}.${col}`] = rightRow[col];
+                }
+
+                result.push(combinedRow);
+            }
         }
     }
 

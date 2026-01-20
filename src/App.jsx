@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useDeferredValue } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue, useEffect } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { FilterGroup } from './components/FilterGroup';
@@ -15,7 +15,7 @@ import { useFilter } from './hooks/useFilter';
 import { useDarkMode } from './hooks/useDarkMode';
 import { ToastProvider, useToast } from './hooks/useToast';
 import { detectColumnTypes, applyFilter, performJoin, detectSmartColumnTypes, cn } from './lib/utils';
-import { Filter, Download, LayoutGrid, Table as TableIcon, Grid3X3, Shield, Sparkles, BarChart3, ShieldCheck } from 'lucide-react';
+import { Filter, Download, LayoutGrid, Table as TableIcon, Grid3X3, Shield, Sparkles, BarChart3, ShieldCheck, Undo2, Redo2 } from 'lucide-react';
 import Papa from 'papaparse';
 
 function AppContent() {
@@ -37,9 +37,105 @@ function AppContent() {
     const [isCleaningPanelOpen, setIsCleaningPanelOpen] = useState(false);
     const [isAnonymizePanelOpen, setIsAnonymizePanelOpen] = useState(false);
 
+    // Undo/Redo history state
+    const [history, setHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const MAX_HISTORY = 50;
+
     const { filterTree, addCondition, addGroup, removeNode, updateNode, setFilterTree } = useFilter();
     const { theme, toggleTheme } = useDarkMode();
     const { toast } = useToast();
+
+    const canUndo = historyIndex >= 0;
+    const canRedo = historyIndex < history.length - 1;
+
+    // Save state to history
+    const saveToHistory = useCallback((tableName, oldData, newData, operation) => {
+        const historyEntry = {
+            tableName,
+            oldData,
+            newData,
+            operation,
+            timestamp: Date.now()
+        };
+
+        setHistory(prev => {
+            // Remove any redo entries (entries after current index)
+            const newHistory = prev.slice(0, historyIndex + 1);
+            // Add new entry
+            newHistory.push(historyEntry);
+            // Limit history size
+            if (newHistory.length > MAX_HISTORY) {
+                return newHistory.slice(-MAX_HISTORY);
+            }
+            return newHistory;
+        });
+        setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
+    }, [historyIndex]);
+
+    // Undo function
+    const handleUndo = useCallback(() => {
+        if (!canUndo) return;
+
+        const entry = history[historyIndex];
+        const { tableName, oldData } = entry;
+
+        if (tables[tableName]) {
+            const types = detectColumnTypes(oldData);
+            const smartTypes = detectSmartColumnTypes(oldData);
+            setTables(prev => ({
+                ...prev,
+                [tableName]: { data: oldData, types, smartTypes }
+            }));
+        }
+
+        setHistoryIndex(prev => prev - 1);
+        toast.info('Undo: Reverted changes');
+    }, [canUndo, history, historyIndex, tables, toast]);
+
+    // Redo function
+    const handleRedo = useCallback(() => {
+        if (!canRedo) return;
+
+        const entry = history[historyIndex + 1];
+        const { tableName, newData } = entry;
+
+        if (tables[tableName]) {
+            const types = detectColumnTypes(newData);
+            const smartTypes = detectSmartColumnTypes(newData);
+            setTables(prev => ({
+                ...prev,
+                [tableName]: { data: newData, types, smartTypes }
+            }));
+        }
+
+        setHistoryIndex(prev => prev + 1);
+        toast.info('Redo: Reapplied changes');
+    }, [canRedo, history, historyIndex, tables, toast]);
+
+    // Keyboard shortcuts for undo/redo
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Don't trigger if user is typing in an input/textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+                return;
+            }
+
+            // Ctrl+Z or Cmd+Z for undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                handleUndo();
+            }
+            // Ctrl+Y or Cmd+Shift+Z for redo
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                handleRedo();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleUndo, handleRedo]);
 
     const tableNames = useMemo(() => Object.keys(tables), [tables]);
     const hasData = tableNames.length > 0;
@@ -181,9 +277,12 @@ function AppContent() {
         return joinedData.data.filter(row => applyFilter(row, deferredFilterTree, deferredCaseSensitive));
     }, [joinedData.data, deferredFilterTree, deferredCaseSensitive]);
 
-    // Handle data cleaning updates
+    // Handle data cleaning updates with history tracking
     const handleCleaningApply = useCallback((cleanedData) => {
         if (!activeTable || !tables[activeTable]) return;
+
+        // Save to history before applying changes
+        saveToHistory(activeTable, tables[activeTable].data, cleanedData, 'Data Cleaning');
 
         const types = detectColumnTypes(cleanedData);
         const smartTypes = detectSmartColumnTypes(cleanedData);
@@ -192,7 +291,7 @@ function AppContent() {
             [activeTable]: { data: cleanedData, types, smartTypes }
         }));
         setIsCleaningPanelOpen(false);
-    }, [activeTable, tables]);
+    }, [activeTable, tables, saveToHistory]);
 
     const handleDownload = useCallback((dataToDownload = filteredData, filename = 'filtered_data.csv') => {
         if (dataToDownload.length === 0) {
@@ -221,24 +320,55 @@ function AppContent() {
     return (
         <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans text-gray-900 dark:text-gray-100 transition-colors duration-300`}>
 
+            {/* Skip to content link for accessibility */}
+            <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+                Skip to main content
+            </a>
+
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-4 sticky top-0 z-10 transition-colors">
+            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-4 sticky top-0 z-10 transition-colors" role="banner">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-500/30">
+                        <div className="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-500/30" aria-hidden="true">
                             <Filter className="text-white" size={24} />
                         </div>
                         <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
                             Advanced CSV Filtering
                         </h1>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        {/* Undo/Redo Buttons */}
+                        {hasData && (
+                            <div className="flex items-center gap-1 mr-2 border-r border-gray-200 dark:border-gray-700 pr-3">
+                                <button
+                                    onClick={handleUndo}
+                                    disabled={!canUndo}
+                                    className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:disabled:hover:bg-transparent transition-colors"
+                                    aria-label="Undo (Ctrl+Z)"
+                                    title="Undo (Ctrl+Z)"
+                                >
+                                    <Undo2 size={18} />
+                                </button>
+                                <button
+                                    onClick={handleRedo}
+                                    disabled={!canRedo}
+                                    className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:disabled:hover:bg-transparent transition-colors"
+                                    aria-label="Redo (Ctrl+Y)"
+                                    title="Redo (Ctrl+Y)"
+                                >
+                                    <Redo2 size={18} />
+                                </button>
+                            </div>
+                        )}
                         <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
                     </div>
                 </div>
             </header>
 
-            <main className="flex-1 max-w-7xl w-full mx-auto p-8 space-y-8">
+            <main id="main-content" className="flex-1 max-w-7xl w-full mx-auto p-8 space-y-8" role="main">
 
                 {/* Upload Section - Show when no tables or adding new */}
                 {(!hasData || isAddingTable) && (

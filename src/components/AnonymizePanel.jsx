@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { X, Shield, Download, Eye, EyeOff, RefreshCw, AlertTriangle, Check, Hash, Asterisk, Trash2 } from 'lucide-react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 // Anonymization methods
 const ANONYMIZATION_METHODS = {
@@ -107,6 +108,10 @@ export function AnonymizePanel({ data, columns, smartTypes, isOpen, onClose, onD
     // Track which columns to anonymize and their methods
     const [anonymizedColumns, setAnonymizedColumns] = useState({});
     const [showPreview, setShowPreview] = useState(true);
+
+    // Focus trap for modal accessibility
+    const handleEscape = useCallback(() => onClose(), [onClose]);
+    const modalRef = useFocusTrap(isOpen, { onEscape: handleEscape });
 
     // Auto-detect sensitive columns when panel opens
     useEffect(() => {
@@ -218,22 +223,31 @@ export function AnonymizePanel({ data, columns, smartTypes, isOpen, onClose, onD
     const hasAnonymization = Object.keys(anonymizedColumns).length > 0;
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="anonymize-panel-title"
+        >
+            <div 
+                ref={modalRef}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200"
+            >
                 {/* Header */}
                 <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="bg-white/20 p-2 rounded-lg">
+                        <div className="bg-white/20 p-2 rounded-lg" aria-hidden="true">
                             <Shield className="text-white" size={24} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-white">Anonymize Columns</h2>
+                            <h2 id="anonymize-panel-title" className="text-xl font-bold text-white">Anonymize Columns</h2>
                             <p className="text-white/80 text-sm">Protect sensitive data before downloading</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
                         className="text-white/80 hover:text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+                        aria-label="Close anonymize panel"
                     >
                         <X size={20} />
                     </button>

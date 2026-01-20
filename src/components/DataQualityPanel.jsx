@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Shield, X, AlertTriangle, CheckCircle, XCircle, Copy, AlertOctagon } from 'lucide-react';
 import { detectDataQuality } from '../lib/utils';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 /**
  * Circular progress indicator for quality score
@@ -85,27 +86,40 @@ export function DataQualityPanel({ data, types, isOpen, onClose }) {
         return detectDataQuality(data, types);
     }, [data, types]);
 
+    // Focus trap for modal accessibility
+    const handleEscape = useCallback(() => onClose(), [onClose]);
+    const modalRef = useFocusTrap(isOpen && quality != null, { onEscape: handleEscape });
+
     if (!isOpen || !quality) return null;
 
     const columns = Object.keys(quality.columns);
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-300">
+        <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quality-panel-title"
+        >
+            <div 
+                ref={modalRef}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-300"
+            >
                 {/* Header */}
                 <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-5 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="bg-white/20 p-2 rounded-lg">
+                        <div className="bg-white/20 p-2 rounded-lg" aria-hidden="true">
                             <Shield className="text-white" size={24} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-white">Data Quality Report</h2>
+                            <h2 id="quality-panel-title" className="text-xl font-bold text-white">Data Quality Report</h2>
                             <p className="text-emerald-100 text-sm">{quality.totalRows} rows analyzed</p>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
                         className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+                        aria-label="Close data quality report"
                     >
                         <X size={20} />
                     </button>
