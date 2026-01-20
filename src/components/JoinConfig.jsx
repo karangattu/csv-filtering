@@ -1,6 +1,69 @@
 import React, { useState, useCallback } from 'react';
-import { X, Plus, Link, Trash2, ArrowRight, Edit3 } from 'lucide-react';
+import { X, Plus, Link, Trash2, ArrowRight, Edit3, HelpCircle } from 'lucide-react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+
+// Detailed explanations for each join type
+const JOIN_EXPLANATIONS = {
+    inner: {
+        label: 'INNER',
+        shortDesc: 'Only matching rows',
+        longDesc: 'Returns only rows that have matching values in both tables. If a row from the left table has no match in the right table (or vice versa), it will not appear in the result.',
+        example: 'If Table A has [1,2,3] and Table B has [2,3,4], INNER JOIN returns [2,3]'
+    },
+    left: {
+        label: 'LEFT',
+        shortDesc: 'All left + matching right',
+        longDesc: 'Returns all rows from the left table, and the matched rows from the right table. If there is no match, the right side will contain NULL values.',
+        example: 'If Table A has [1,2,3] and Table B has [2,3,4], LEFT JOIN returns [1,2,3] with NULLs for row 1'
+    },
+    right: {
+        label: 'RIGHT',
+        shortDesc: 'All right + matching left',
+        longDesc: 'Returns all rows from the right table, and the matched rows from the left table. If there is no match, the left side will contain NULL values.',
+        example: 'If Table A has [1,2,3] and Table B has [2,3,4], RIGHT JOIN returns [2,3,4] with NULLs for row 4'
+    },
+    full: {
+        label: 'FULL OUTER',
+        shortDesc: 'All rows from both',
+        longDesc: 'Returns all rows when there is a match in either left or right table. Rows without a match in the other table will have NULL values for the missing columns.',
+        example: 'If Table A has [1,2,3] and Table B has [2,3,4], FULL JOIN returns [1,2,3,4] with NULLs where no match'
+    }
+};
+
+// Tooltip component for join type explanations
+function JoinTypeTooltip({ type, children }) {
+    const [showTooltip, setShowTooltip] = useState(false);
+    const info = JOIN_EXPLANATIONS[type];
+    
+    return (
+        <div className="relative inline-block">
+            <div 
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+                onFocus={() => setShowTooltip(true)}
+                onBlur={() => setShowTooltip(false)}
+            >
+                {children}
+            </div>
+            {showTooltip && (
+                <div 
+                    className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg shadow-xl animate-in fade-in zoom-in-95 duration-150"
+                    role="tooltip"
+                >
+                    <div className="font-semibold text-sm mb-1 text-blue-300">{info.label} JOIN</div>
+                    <p className="text-gray-200 mb-2">{info.longDesc}</p>
+                    <div className="bg-gray-800 dark:bg-gray-600 rounded p-2 text-gray-300 italic">
+                        <span className="text-yellow-400 not-italic">Example: </span>{info.example}
+                    </div>
+                    {/* Tooltip arrow */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px">
+                        <div className="border-8 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 function generateDefaultAlias(tableName, index) {
     const baseName = tableName.replace(/\.(csv|xlsx?|json)$/i, '').replace(/[^a-zA-Z0-9]/g, '_');
@@ -151,28 +214,29 @@ export function JoinConfig({ tables, joins, onUpdateJoins, tableAliases, onUpdat
                         
                         {/* Join Type Selection */}
                         <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
-                            <label className="text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Join Type:</label>
+                            <label className="text-xs font-medium text-gray-500 uppercase whitespace-nowrap flex items-center gap-1">
+                                Join Type:
+                                <span className="text-gray-400" title="Hover over each join type for details">
+                                    <HelpCircle size={12} />
+                                </span>
+                            </label>
                             <div className="flex flex-wrap gap-2">
-                                {[
-                                    { value: 'inner', label: 'INNER', desc: 'Only matching rows' },
-                                    { value: 'left', label: 'LEFT', desc: 'All left + matching right' },
-                                    { value: 'right', label: 'RIGHT', desc: 'All right + matching left' },
-                                    { value: 'full', label: 'FULL OUTER', desc: 'All rows from both' }
-                                ].map(type => (
-                                    <button
-                                        key={type.value}
-                                        type="button"
-                                        onClick={() => setNewJoin({ ...newJoin, joinType: type.value })}
-                                        className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                                            newJoin.joinType === type.value
-                                                ? 'bg-blue-600 border-blue-600 text-white'
-                                                : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                        }`}
-                                        title={type.desc}
-                                        aria-pressed={newJoin.joinType === type.value}
-                                    >
-                                        {type.label}
-                                    </button>
+                                {['inner', 'left', 'right', 'full'].map(type => (
+                                    <JoinTypeTooltip key={type} type={type}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewJoin({ ...newJoin, joinType: type })}
+                                            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                                newJoin.joinType === type
+                                                    ? 'bg-blue-600 border-blue-600 text-white'
+                                                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                            }`}
+                                            aria-pressed={newJoin.joinType === type}
+                                            aria-describedby={`tooltip-${type}`}
+                                        >
+                                            {JOIN_EXPLANATIONS[type].label}
+                                        </button>
+                                    </JoinTypeTooltip>
                                 ))}
                             </div>
                         </div>
