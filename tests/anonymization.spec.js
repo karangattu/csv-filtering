@@ -44,9 +44,10 @@ test.describe('CSV Anonymization Feature', () => {
         await page.waitForSelector('table');
 
         await page.getByRole('button', { name: /Anonymize & Download/i }).click();
-        await page.waitForSelector('.fixed.inset-0');
+        const modal = page.getByRole('dialog', { name: /Anonymize Columns/i });
+        await expect(modal).toBeVisible();
 
-        const nameCheckbox = page.locator('label').filter({ hasText: 'name' }).locator('input[type="checkbox"]');
+        const nameCheckbox = modal.getByRole('checkbox', { name: /^name$/i });
         await nameCheckbox.check();
         await expect(nameCheckbox).toBeChecked();
 
@@ -59,15 +60,16 @@ test.describe('CSV Anonymization Feature', () => {
         await page.waitForSelector('table');
 
         await page.getByRole('button', { name: /Anonymize & Download/i }).click();
-        await page.waitForSelector('.fixed.inset-0');
+        const modal = page.getByRole('dialog', { name: /Anonymize Columns/i });
+        await expect(modal).toBeVisible();
 
-        const nameCheckbox = page.locator('label').filter({ hasText: 'name' }).locator('input[type="checkbox"]');
+        const nameCheckbox = modal.getByRole('checkbox', { name: /^name$/i });
         await nameCheckbox.check();
 
-        await expect(page.getByRole('button', { name: 'Mask' }).first()).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Redact' }).first()).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Hash' }).first()).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Remove' }).first()).toBeVisible();
+        await expect(modal.getByRole('button', { name: 'Mask' }).first()).toBeVisible();
+        await expect(modal.getByRole('button', { name: 'Redact' }).first()).toBeVisible();
+        await expect(modal.getByRole('button', { name: 'Hash' }).first()).toBeVisible();
+        await expect(modal.getByRole('button', { name: 'Remove' }).first()).toBeVisible();
     });
 
     test('should show preview of anonymized data', async ({ page }) => {
@@ -75,12 +77,13 @@ test.describe('CSV Anonymization Feature', () => {
         await page.waitForSelector('table');
 
         await page.getByRole('button', { name: /Anonymize & Download/i }).click();
-        await page.waitForSelector('.fixed.inset-0');
+        const modal = page.getByRole('dialog', { name: /Anonymize Columns/i });
+        await expect(modal).toBeVisible();
 
-        const nameCheckbox = page.locator('label').filter({ hasText: 'name' }).locator('input[type="checkbox"]');
+        const nameCheckbox = modal.getByRole('checkbox', { name: /^name$/i });
         await nameCheckbox.check();
 
-        await expect(page.getByText('Preview (First 5 rows)')).toBeVisible();
+        await expect(modal.getByText('Preview (First 5 rows)')).toBeVisible();
     });
 
     test('should switch between anonymization methods', async ({ page }) => {
@@ -88,12 +91,13 @@ test.describe('CSV Anonymization Feature', () => {
         await page.waitForSelector('table');
 
         await page.getByRole('button', { name: /Anonymize & Download/i }).click();
-        await page.waitForSelector('.fixed.inset-0');
+        const modal = page.getByRole('dialog', { name: /Anonymize Columns/i });
+        await expect(modal).toBeVisible();
 
-        const nameCheckbox = page.locator('label').filter({ hasText: 'name' }).locator('input[type="checkbox"]');
+        const nameCheckbox = modal.getByRole('checkbox', { name: /^name$/i });
         await nameCheckbox.check();
 
-        await page.getByRole('button', { name: 'Redact' }).first().click();
+        await modal.getByRole('button', { name: 'Redact' }).first().click();
         await expect(page.locator('td').filter({ hasText: '[REDACTED]' }).first()).toBeVisible();
     });
 

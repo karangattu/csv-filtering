@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useDeferredValue, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { DataTable } from './components/DataTable';
 import { FilterGroup } from './components/FilterGroup';
@@ -30,6 +30,7 @@ function AppContent() {
     const [isAddingTable, setIsAddingTable] = useState(false);
     const [isCaseSensitive, setIsCaseSensitive] = useState(false);
     const [tableAliases, setTableAliases] = useState({});
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
     // Premium features state
     const [isStatsOpen, setIsStatsOpen] = useState(false);
@@ -45,6 +46,12 @@ function AppContent() {
     const { filterTree, addCondition, addGroup, removeNode, updateNode, setFilterTree } = useFilter();
     const { theme, toggleTheme } = useDarkMode();
     const { toast } = useToast();
+    const shouldConfirmLeaveRef = useRef(false);
+    const popstateHandlerRef = useRef(null);
+
+    const tableNames = useMemo(() => Object.keys(tables), [tables]);
+    const hasData = tableNames.length > 0;
+    const shouldConfirmLeave = hasData || isAddingTable;
 
     const canUndo = historyIndex >= 0;
     const canRedo = historyIndex < history.length - 1;
@@ -113,6 +120,19 @@ function AppContent() {
         toast.info('Redo: Reapplied changes');
     }, [canRedo, history, historyIndex, tables, toast]);
 
+    const handleConfirmLeave = useCallback(() => {
+        setShowLeaveConfirm(false);
+        const handler = popstateHandlerRef.current;
+        if (handler) {
+            window.removeEventListener('popstate', handler);
+        }
+        window.history.go(-2);
+    }, []);
+
+    const handleStayOnPage = useCallback(() => {
+        setShowLeaveConfirm(false);
+    }, []);
+
     // Keyboard shortcuts for undo/redo
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -137,8 +157,43 @@ function AppContent() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleUndo, handleRedo]);
 
-    const tableNames = useMemo(() => Object.keys(tables), [tables]);
-    const hasData = tableNames.length > 0;
+    useEffect(() => {
+        shouldConfirmLeaveRef.current = shouldConfirmLeave;
+    }, [shouldConfirmLeave]);
+
+    useEffect(() => {
+        const pushGuardState = () => {
+            window.history.pushState({ csvFilteringGuard: true }, '', window.location.href);
+        };
+
+        const handlePopState = () => {
+            if (!shouldConfirmLeaveRef.current) {
+                window.removeEventListener('popstate', handlePopState);
+                window.history.back();
+                return;
+            }
+            setShowLeaveConfirm(true);
+            pushGuardState();
+        };
+
+        popstateHandlerRef.current = handlePopState;
+        pushGuardState();
+        window.addEventListener('popstate', handlePopState);
+
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    useEffect(() => {
+        if (!showLeaveConfirm) return;
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setShowLeaveConfirm(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showLeaveConfirm]);
 
     // Compute joined data when joins are configured
     const joinedData = useMemo(() => {
@@ -587,6 +642,42 @@ function AppContent() {
                     </div>
                 )}
             </main>
+            {showLeaveConfirm && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-in fade-in duration-200"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="leave-confirm-title"
+                >
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                            <h2 id="leave-confirm-title" className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                                Leave this page?
+                            </h2>
+                        </div>
+                        <div className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300 space-y-2">
+                            <p>Going back will clear your current tables, joins, and filters.</p>
+                            <p>Do you want to stay and keep your progress?</p>
+                        </div>
+                        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={handleStayOnPage}
+                                className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                            >
+                                Stay
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmLeave}
+                                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+                            >
+                                Leave
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

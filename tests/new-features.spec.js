@@ -417,6 +417,29 @@ test.describe('Data Cleaning Panel Accessibility', () => {
 });
 
 // ============================================
+// NAVIGATION GUARD
+// ============================================
+
+test.describe('Navigation Guard', () => {
+    test.beforeEach(async ({ page }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+    });
+
+    test('should confirm before navigating back when data is loaded', async ({ page }) => {
+        await page.locator('input[type="file"]').setInputFiles(path.resolve('guests.csv'));
+        await page.waitForSelector('table');
+
+        await page.goBack();
+
+        const dialog = page.getByRole('dialog', { name: 'Leave this page?' });
+        await expect(dialog).toBeVisible();
+        await page.getByRole('button', { name: 'Stay' }).click();
+        await expect(dialog).toHaveCount(0);
+    });
+});
+
+// ============================================
 // TABLE MANAGER ACCESSIBILITY
 // ============================================
 

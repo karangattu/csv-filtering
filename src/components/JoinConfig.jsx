@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { X, Plus, Link, Trash2, ArrowRight, Edit3, HelpCircle } from 'lucide-react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -72,7 +72,8 @@ function generateDefaultAlias(tableName, index) {
 }
 
 export function JoinConfig({ tables, joins, onUpdateJoins, tableAliases, onUpdateAliases, onClose }) {
-    const tableNames = Object.keys(tables);
+    const tableNames = useMemo(() => Object.keys(tables), [tables]);
+    const [aliasDrafts, setAliasDrafts] = useState({});
 
     const [newJoin, setNewJoin] = useState({
         leftTable: tableNames[0] || '',
@@ -81,6 +82,14 @@ export function JoinConfig({ tables, joins, onUpdateJoins, tableAliases, onUpdat
         rightColumn: '',
         joinType: 'inner' // Default to inner join
     });
+
+    useEffect(() => {
+        const nextDrafts = {};
+        tableNames.forEach(tableName => {
+            nextDrafts[tableName] = tableAliases[tableName] || '';
+        });
+        setAliasDrafts(nextDrafts);
+    }, [tableAliases, tableNames]);
 
     // Focus trap for modal accessibility
     const handleEscape = useCallback(() => onClose(), [onClose]);
@@ -109,10 +118,31 @@ export function JoinConfig({ tables, joins, onUpdateJoins, tableAliases, onUpdat
     };
 
     const handleAliasChange = (tableName, newAlias) => {
-        onUpdateAliases({
-            ...tableAliases,
-            [tableName]: newAlias.trim() || generateDefaultAlias(tableName, tableNames.indexOf(tableName))
-        });
+        setAliasDrafts(prev => ({
+            ...prev,
+            [tableName]: newAlias
+        }));
+    };
+
+    const commitAliasChange = (tableName) => {
+        const rawValue = aliasDrafts[tableName] ?? '';
+        const trimmedValue = rawValue.trim();
+        const nextAlias = trimmedValue || generateDefaultAlias(tableName, tableNames.indexOf(tableName));
+        const currentAlias = tableAliases[tableName] || '';
+
+        if (currentAlias !== nextAlias) {
+            onUpdateAliases({
+                ...tableAliases,
+                [tableName]: nextAlias
+            });
+        }
+
+        if (!trimmedValue) {
+            setAliasDrafts(prev => ({
+                ...prev,
+                [tableName]: ''
+            }));
+        }
     };
 
     return (
@@ -159,8 +189,24 @@ export function JoinConfig({ tables, joins, onUpdateJoins, tableAliases, onUpdat
                                         </div>
                                         <input
                                             type="text"
-                                            value={tableAliases[tableName] || ''}
+                                            value={aliasDrafts[tableName] ?? ''}
                                             onChange={(e) => handleAliasChange(tableName, e.target.value)}
+                                            onBlur={() => commitAliasChange(tableName)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') {
+                                                    event.preventDefault();
+                                                    commitAliasChange(tableName);
+                                                    event.currentTarget.blur();
+                                                }
+                                                if (event.key === 'Escape') {
+                                                    event.preventDefault();
+                                                    setAliasDrafts(prev => ({
+                                                        ...prev,
+                                                        [tableName]: tableAliases[tableName] || ''
+                                                    }));
+                                                    event.currentTarget.blur();
+                                                }
+                                            }}
                                             placeholder={generateDefaultAlias(tableName, idx)}
                                             className="w-full mt-1 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none font-mono"
                                         />
