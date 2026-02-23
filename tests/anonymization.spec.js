@@ -156,7 +156,7 @@ test.describe('CSV Anonymization Feature', () => {
         await page.getByRole('button', { name: 'Download Anonymized CSV' }).click();
         const download = await downloadPromise;
 
-        expect(download.suggestedFilename()).toBe('anonymized_data.csv');
+        expect(download.suggestedFilename()).toBe('guests_anonymized.csv');
     });
 
     test('should keep regular download button functional', async ({ page }) => {
