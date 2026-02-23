@@ -369,8 +369,9 @@ function AppContent() {
     }, [filteredData, toast]);
 
     const handleAnonymizedDownload = useCallback((anonymizedData) => {
-        handleDownload(anonymizedData, 'anonymized_data.csv');
-    }, [handleDownload]);
+        const baseName = activeTable ? activeTable.replace(/\.csv$/i, '') : 'data';
+        handleDownload(anonymizedData, `${baseName}_anonymized.csv`);
+    }, [handleDownload, activeTable]);
 
     return (
         <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col font-sans text-gray-900 dark:text-gray-100 transition-colors duration-300`}>
